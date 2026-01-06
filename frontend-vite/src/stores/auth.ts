@@ -38,21 +38,6 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    async function register(username: string, password: string) {
-        try {
-            await axios.post(`${API_URL}/api/auth/register`, {
-                username,
-                password
-            })
-            return { success: true }
-        } catch (error: any) {
-            return {
-                success: false,
-                error: error.response?.data?.detail || 'Registration failed'
-            }
-        }
-    }
-
     function logout() {
         token.value = null
         user.value = null
@@ -61,5 +46,5 @@ export const useAuthStore = defineStore('auth', () => {
         // But usually returning it works or calling it from component
     }
 
-    return { token, user, isAuthenticated, login, register, logout }
+    return { token, user, isAuthenticated, login, logout }
 })

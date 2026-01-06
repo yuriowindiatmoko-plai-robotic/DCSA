@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,10 +12,9 @@ const errorMessage = ref('')
 const isLoading = ref(false)
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 
-const registeredMessage = route.query.registered ? 'Registration successful! Please log in.' : ''
+
 
 async function handleLogin() {
   isLoading.value = true
@@ -54,9 +53,7 @@ async function handleLogin() {
           <p class="text-sm text-gray-500">Welcome back! Please enter your details.</p>
         </div>
 
-        <div v-if="registeredMessage" class="bg-green-100 text-green-700 p-3 rounded-md text-sm text-center">
-            {{ registeredMessage }}
-        </div>
+
 
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div class="space-y-2">
