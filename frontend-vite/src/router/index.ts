@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import HomeAdminView from '../views/HomeAdminView.vue'
 import HomeClientView from '../views/HomeClientView.vue'
+import RatingFoodView from '../views/RatingFoodView.vue'
 import { useAuthStore } from '../stores/auth'
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,6 +19,12 @@ const router = createRouter({
             name: 'home-client',
             component: HomeClientView,
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/rating-food/:institutionId',
+            name: 'rating-food',
+            component: RatingFoodView,
+            meta: { requiresAuth: false }
         },
         {
             path: '/login',
