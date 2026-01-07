@@ -29,6 +29,7 @@ import { Save } from 'lucide-vue-next'
 const props = defineProps<{
   open: boolean
   order: any
+  mode?: 'admin' | 'client'
 }>()
 
 const emit = defineEmits(['update:open', 'save'])
@@ -64,6 +65,23 @@ const totalDistributionPortions = computed(() => {
   return distributionData.value.reduce((sum, item) => sum + Number(item.portions), 0)
 })
 
+const isReadOnly = computed(() => {
+  if (props.mode === 'client') {
+    return ['Cooking', 'Delivered'].includes(formData.value.status)
+  }
+  return false
+})
+
+const isClientMode = computed(() => props.mode === 'client')
+
+// Watch for distribution changes to auto-update total portions in client mode
+watch(distributionData, (newData) => {
+  if (isClientMode.value) {
+    const total = newData.reduce((sum, item) => sum + Number(item.portions), 0)
+    formData.value.portions = total
+  }
+}, { deep: true })
+
 const handleSave = () => {
   // Emit updated data back to parent
   emit('save', {
@@ -85,7 +103,7 @@ const handleSave = () => {
                DK
              </div>
              <div>
-               <h2 class="text-lg font-bold text-zinc-900">Admin DK</h2>
+               <h2 class="text-lg font-bold text-zinc-900">{{ mode === 'client' ? 'Client DK' : 'Admin DK' }}</h2>
                <p class="text-xs text-zinc-500">Edit Details & Approval</p>
              </div>
            </div>
@@ -109,11 +127,11 @@ const handleSave = () => {
         <div class="grid grid-cols-2 gap-6">
           <div class="space-y-2">
             <Label>Date</Label>
-            <Input v-model="formData.date" type="date" class="bg-zinc-50/50" />
+            <Input v-model="formData.date" type="date" class="bg-zinc-50/50" :disabled="isClientMode || isReadOnly" />
           </div>
           <div class="space-y-2">
             <Label>Institution</Label>
-            <Select v-model="formData.institution">
+            <Select v-model="formData.institution" :disabled="isClientMode || isReadOnly">
               <SelectTrigger class="bg-zinc-50/50">
                 <SelectValue placeholder="Select Institution" />
               </SelectTrigger>
@@ -129,19 +147,19 @@ const handleSave = () => {
           </div>
           <div class="space-y-2">
             <Label>Total Portions</Label>
-            <Input v-model="formData.portions" type="number" class="bg-zinc-50/50" />
+            <Input v-model="formData.portions" type="number" class="bg-zinc-50/50" :disabled="isClientMode || isReadOnly" />
           </div>
           <div class="space-y-2">
             <Label>Staff Count</Label>
-            <Input v-model="formData.staff" type="number" class="bg-zinc-50/50" />
+            <Input v-model="formData.staff" type="number" class="bg-zinc-50/50" :disabled="isClientMode || isReadOnly" />
           </div>
            <div class="space-y-2 col-span-2">
             <Label>Location</Label>
-            <Input v-model="formData.location" class="bg-zinc-50/50" />
+            <Input v-model="formData.location" class="bg-zinc-50/50" :disabled="isClientMode || isReadOnly" />
           </div>
           <div class="space-y-2 col-span-2">
             <Label>Status</Label>
-             <Select v-model="formData.status">
+             <Select v-model="formData.status" :disabled="isClientMode || isReadOnly">
               <SelectTrigger class="bg-zinc-50/50">
                 <SelectValue placeholder="Select Status" />
               </SelectTrigger>
@@ -177,13 +195,13 @@ const handleSave = () => {
                 <TableRow v-for="(item, index) in distributionData" :key="index">
                   <TableCell class="font-medium">{{ item.category }}</TableCell>
                   <TableCell>
-                    <Input v-model="item.portions" type="number" class="h-8 w-20" />
+                    <Input v-model="item.portions" type="number" class="h-8 w-20" :disabled="isReadOnly" />
                   </TableCell>
                   <TableCell>
-                     <Input v-model="item.location" class="h-8" />
+                     <Input v-model="item.location" class="h-8" :disabled="isReadOnly" />
                   </TableCell>
                   <TableCell>
-                     <Select v-model="item.type">
+                     <Select v-model="item.type" :disabled="isReadOnly">
                       <SelectTrigger class="h-8 w-[110px]">
                         <SelectValue />
                       </SelectTrigger>
@@ -204,7 +222,7 @@ const handleSave = () => {
         <Button variant="outline" @click="emit('update:open', false)" class="text-rose-500 hover:text-rose-600 hover:bg-rose-50 border-rose-200">
           Cancel
         </Button>
-        <Button class="bg-emerald-500 hover:bg-emerald-600 text-white gap-2" @click="handleSave">
+        <Button v-if="!isReadOnly" class="bg-emerald-500 hover:bg-emerald-600 text-white gap-2" @click="handleSave">
           <Save class="h-4 w-4" />
           Save Changes
         </Button>

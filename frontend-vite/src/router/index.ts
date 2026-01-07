@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+
 import LoginView from '../views/LoginView.vue'
 import HomeAdminView from '../views/HomeAdminView.vue'
+import HomeClientView from '../views/HomeClientView.vue'
 import { useAuthStore } from '../stores/auth'
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -9,7 +10,13 @@ const router = createRouter({
         {
             path: '/',
             name: 'home',
-            component: HomeView,
+            component: HomeAdminView,
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/home-client',
+            name: 'home-client',
+            component: HomeClientView,
             meta: { requiresAuth: true }
         },
         {
