@@ -11,9 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  ShoppingBag,
   Users,
-  Settings,
   LogOut,
   ArrowUpDown
 } from 'lucide-vue-next'
@@ -42,7 +40,12 @@ import {
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 
 
 // Types
@@ -163,25 +166,17 @@ const getStatusClasses = (status: string) => {
     >
       <div class="p-6 h-full flex flex-col">
         <div class="flex items-center gap-3 mb-10">
-          <img src="@/assets/dcsa-logo.svg" alt="DCSA Logo" class="h-8 w-auto filter invert brightness-200" />
+          <img src="@/assets/dcsa-logo.svg" alt="DCSA Logo" class="h-8 w-auto brightness-125 filter-[invert(48%)_sepia(79%)_saturate(2476%)_hue-rotate(120deg)_brightness(118%)_contrast(119%)]" />
           <span class="font-bold text-xl text-white tracking-wide">DCSA</span>
         </div>
         <nav class="space-y-1 flex-1">
-          <a href="#" class="flex items-center gap-3 px-4 py-3 text-zinc-200 bg-zinc-800/50 rounded-lg group">
+          <a href="#dashboard" class="flex items-center gap-3 px-4 py-3 text-zinc-200 bg-zinc-800/50 rounded-lg group">
             <LayoutDashboard class="h-5 w-5" />
             <span class="font-medium">Dashboard</span>
           </a>
-          <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 hover:text-white rounded-lg transition-colors group">
-            <ShoppingBag class="h-5 w-5" />
-            <span class="font-medium">Orders</span>
-          </a>
-          <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 hover:text-white rounded-lg transition-colors group">
+          <a href="#user-management" class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 hover:text-white rounded-lg transition-colors group">
             <Users class="h-5 w-5" />
-            <span class="font-medium">Management</span>
-          </a>
-          <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 hover:text-white rounded-lg transition-colors group">
-            <Settings class="h-5 w-5" />
-            <span class="font-medium">Settings</span>
+            <span class="font-medium">User Management</span>
           </a>
         </nav>
         <div class="mt-auto pt-6 border-t border-zinc-800">
@@ -204,10 +199,24 @@ const getStatusClasses = (status: string) => {
           <h2 class="font-semibold text-lg">Admin / Order Analysis</h2>
         </div>
         <div class="flex items-center gap-4">
-          <Button variant="ghost" size="icon" class="text-zinc-500 relative">
-            <Bell class="h-5 w-5" />
-            <span class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  class="text-zinc-500 relative"
+                  @click="filterStatus = 'Requested Edit'"
+                >
+                  <Bell class="h-5 w-5" />
+                  <span class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>There was 3 requested edit</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Avatar class="h-8 w-8">
             <AvatarImage src="https://ui.shadcn.com/avatars/02.png" />
             <AvatarFallback>AD</AvatarFallback>
@@ -346,9 +355,7 @@ const getStatusClasses = (status: string) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Order</DropdownMenuItem>
                       <DropdownMenuItem>Edit Details</DropdownMenuItem>
-                      <DropdownMenuItem class="text-rose-500">Cancel</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
