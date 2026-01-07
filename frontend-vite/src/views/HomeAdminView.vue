@@ -47,6 +47,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
+import UserManagementForm from '@/components/UserManagementForm.vue'
 
 
 // Types
@@ -66,6 +67,11 @@ interface Order {
 // Sidebar state
 const isSidebarOpen = ref(true)
 const toggleSidebar = () => isSidebarOpen.value = !isSidebarOpen.value
+
+
+
+// View State
+const currentView = ref('dashboard') // 'dashboard' | 'user-management'
 
 // Filters State
 const todayString = new Date().toISOString().split('T')[0]
@@ -189,11 +195,11 @@ const getStatusClasses = (status: string) => {
           <span class="font-bold text-xl text-white tracking-wide">DCSA</span>
         </div>
         <nav class="space-y-1 flex-1">
-          <a href="#dashboard" class="flex items-center gap-3 px-4 py-3 text-zinc-200 bg-zinc-800/50 rounded-lg group">
+          <a href="#" @click.prevent="currentView = 'dashboard'" :class="currentView === 'dashboard' ? 'bg-zinc-800/50 text-zinc-200' : 'hover:bg-zinc-800/30 hover:text-white'" class="flex items-center gap-3 px-4 py-3 rounded-lg group transition-colors">
             <LayoutDashboard class="h-5 w-5" />
             <span class="font-medium">Dashboard</span>
           </a>
-          <a href="#user-management" class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 hover:text-white rounded-lg transition-colors group">
+          <a href="#" @click.prevent="currentView = 'user-management'" :class="currentView === 'user-management' ? 'bg-zinc-800/50 text-zinc-200' : 'hover:bg-zinc-800/30 hover:text-white'" class="flex items-center gap-3 px-4 py-3 rounded-lg group transition-colors">
             <Users class="h-5 w-5" />
             <span class="font-medium">User Management</span>
           </a>
@@ -215,7 +221,7 @@ const getStatusClasses = (status: string) => {
           <Button variant="ghost" size="icon" @click="toggleSidebar" class="lg:hidden">
             <Menu class="h-5 w-5" />
           </Button>
-          <h2 class="font-semibold text-lg">Admin / Order Analysis</h2>
+          <h2 class="font-semibold text-lg">{{ currentView === 'dashboard' ? 'Admin / Order Analysis' : 'Admin / User Management' }}</h2>
         </div>
         <div class="flex items-center gap-4">
           <TooltipProvider>
@@ -244,7 +250,7 @@ const getStatusClasses = (status: string) => {
       </header>
 
       <!-- Content Area -->
-      <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <div v-if="currentView === 'dashboard'" class="flex-1 overflow-y-auto p-6 space-y-6">
         <!-- Top Filters Section -->
         <div class="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -437,6 +443,11 @@ const getStatusClasses = (status: string) => {
             </div>
           </div>
         </div>
+      </div>
+      
+      <!-- User Management View -->
+      <div v-if="currentView === 'user-management'" class="flex-1 overflow-y-auto p-6">
+        <UserManagementForm />
       </div>
     </main>
 
