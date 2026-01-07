@@ -158,7 +158,7 @@ const getStatusClasses = (status: string) => {
   <div class="flex h-screen bg-[#F9FAFB] text-zinc-900 font-inter">
     <!-- Sidebar (Existing) -->
     <aside 
-      class="bg-[#020817] text-zinc-400 w-64 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-zinc-800 lg:static fixed z-50 h-full"
+      class="bg-[#020817] text-zinc-400 w-64 shrink-0 transition-all duration-300 ease-in-out border-r border-zinc-800 lg:static fixed z-50 h-full"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:hidden'"
     >
       <div class="p-6 h-full flex flex-col">
@@ -196,7 +196,7 @@ const getStatusClasses = (status: string) => {
     <!-- Main Content -->
     <main class="flex-1 flex flex-col overflow-hidden">
       <!-- Header -->
-      <header class="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 flex-shrink-0">
+      <header class="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
           <Button variant="ghost" size="icon" @click="toggleSidebar" class="lg:hidden">
             <Menu class="h-5 w-5" />
