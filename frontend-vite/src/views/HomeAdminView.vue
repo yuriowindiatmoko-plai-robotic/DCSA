@@ -46,6 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
+import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
 
 
 // Types
@@ -71,7 +72,25 @@ const todayString = new Date().toISOString().split('T')[0]
 const filterDate = ref(todayString)
 const filterInstitution = ref('all')
 const filterSearch = ref('')
+
 const filterStatus = ref('All Orders')
+
+// Modal State
+const isModalOpen = ref(false)
+const selectedOrder = ref<Order | null>(null)
+
+const handleEditDetails = (order: Order) => {
+  selectedOrder.value = { ...order } // Clone to avoid direct mutation
+  isModalOpen.value = true
+}
+
+const handleSaveChanges = (updatedOrder: Order) => {
+  const index = rawOrders.value.findIndex(o => o.id === updatedOrder.id)
+  if (index !== -1) {
+    rawOrders.value[index] = { ...updatedOrder }
+  }
+  isModalOpen.value = false
+}
 
 const statusOptions = ['All Orders', 'Requested Edit', 'Edited', 'Cooking', 'Delivered']
 
@@ -355,7 +374,7 @@ const getStatusClasses = (status: string) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit Details</DropdownMenuItem>
+                      <DropdownMenuItem @click="handleEditDetails(order)">Edit Details</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -420,6 +439,15 @@ const getStatusClasses = (status: string) => {
         </div>
       </div>
     </main>
+
+
+    <!-- Modals -->
+    <OrderDetailsModal 
+      :open="isModalOpen" 
+      :order="selectedOrder" 
+      @update:open="isModalOpen = $event"
+      @save="handleSaveChanges"
+    />
   </div>
 </template>
 
