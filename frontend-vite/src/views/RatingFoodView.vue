@@ -336,7 +336,7 @@ const resetForm = () => {
              Cancel
            </Button>
            <Button 
-             class="h-11 font-bold text-md shadow-lg shadow-emerald-500/20 transition-all hover:translate-y-[-1px]"
+             class="h-11 font-bold text-md shadow-lg shadow-emerald-500/20 transition-all hover:translate-y-[px]"
              :class="isValid ? 'bg-[#00E560] hover:bg-[#00CC55] text-emerald-950' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'"
              :disabled="!isValid || isSubmitting"
              @click="submitFeedback"
