@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,11 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Info } from 'lucide-vue-next'
+import { RefreshCw, Info, Loader2 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 
+const API_URL = 'http://localhost:8000'
+
 const formData = ref({
-  fullName: '',
+  username: '',
   email: '',
   phone: '',
   employeeId: '',
@@ -22,6 +25,8 @@ const formData = ref({
   institution: '',
   password: ''
 })
+
+const isSubmitting = ref(false)
 
 const generatePassword = () => {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
@@ -32,20 +37,72 @@ const generatePassword = () => {
   formData.value.password = password
 }
 
-const handleRegister = () => {
-  // Mock registration
-  console.log('Registering User:', formData.value)
-  toast.success('User created successfully')
-  
-  // Reset form
-  formData.value = {
-    fullName: '',
-    email: '',
-    phone: '',
-    employeeId: '',
-    role: '',
-    institution: '',
-    password: ''
+const handleRegister = async () => {
+  // Trim inputs
+  const username = formData.value.username.trim()
+  const email = formData.value.email.trim()
+  const password = formData.value.password.trim()
+  const role = formData.value.role
+  const institution = formData.value.institution
+
+  if (!username || !email || !password || !role || !institution) {
+    toast.error('Please fill in all required fields')
+    return
+  }
+
+  if (password.length < 6) {
+    toast.error('Password must be at least 6 characters')
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const payload = {
+      username,
+      email,
+      password,
+      institution_name: institution,
+      role
+    }
+
+    console.log('Sending Registration Payload:', payload)
+
+    const response = await axios.post(`${API_URL}/api/auth/register`, payload)
+    
+    console.log('Registration Success:', response.data)
+    toast.success('User created successfully')
+    
+    // Reset form
+    formData.value = {
+      username: '',
+      email: '',
+      phone: '',
+      employeeId: '',
+      role: '',
+      institution: '',
+      password: ''
+    }
+  } catch (error: any) {
+    console.error('Registration failed:', error)
+    
+    let errorMsg = 'Registration failed'
+    
+    if (error.response?.status === 422) {
+      const detail = error.response.data?.detail
+      if (Array.isArray(detail)) {
+        errorMsg = detail.map((d: any) => `${d.loc[d.loc.length - 1]}: ${d.msg}`).join(', ')
+      } else if (typeof detail === 'string') {
+        errorMsg = detail
+      }
+    } else {
+      errorMsg = error.response?.data?.detail || 'An unexpected error occurred'
+    }
+    
+    toast.error(errorMsg, {
+      description: 'Check the console for more details.'
+    })
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -63,15 +120,15 @@ const handleRegister = () => {
       <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-wider">Personal Information</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
-          <Label>Full Name</Label>
-          <Input v-model="formData.fullName" placeholder="e.g. John Doe" class="bg-white" />
+          <Label>Username</Label>
+          <Input v-model="formData.username" placeholder="e.g. johndoe_admin" class="bg-white" />
         </div>
         <div class="space-y-2">
-          <Label>Email Address (Username)</Label>
+          <Label>Email Address</Label>
           <Input v-model="formData.email" placeholder="e.g. john.doe@dcsa.app" class="bg-white" />
         </div>
         <div class="space-y-2">
-          <Label>Phone Number</Label>
+          <Label>Phone Number <span class="text-zinc-400 font-normal">(Optional)</span></Label>
           <Input v-model="formData.phone" placeholder="+62 812..." class="bg-white" />
         </div>
         <div class="space-y-2">
@@ -92,9 +149,9 @@ const handleRegister = () => {
               <SelectValue placeholder="Select a role..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="client_admin">Client Admin</SelectItem>
-              <SelectItem value="super_admin">Super Admin</SelectItem>
-              <SelectItem value="staff">Staff</SelectItem>
+              <SelectItem value="CLIENT_ADMIN">Client Admin</SelectItem>
+              <SelectItem value="DK_ADMIN">DK Admin</SelectItem>
+              <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
             </SelectContent>
           </Select>
           <p class="text-[11px] text-zinc-500">Determines the user's permissions within the portal.</p>
@@ -106,12 +163,12 @@ const handleRegister = () => {
               <SelectValue placeholder="Select institution..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="vhs">VHS</SelectItem>
-              <SelectItem value="plai">PLAI</SelectItem>
-              <SelectItem value="bmd_panjen">SD BMD Panjen</SelectItem>
-              <SelectItem value="smp_bmd">SMP BMD</SelectItem>
-              <SelectItem value="sma_bmd">SMA BMD</SelectItem>
-              <SelectItem value="binus">Binus Univ</SelectItem>
+              <SelectItem value="Dapur Kuliner BMD">Dapur Kuliner BMD</SelectItem>
+              <SelectItem value="SD Budi Mulia Dua Panjen">SD BMD Panjen</SelectItem>
+              <SelectItem value="SMP Budi Mulia Dua">SMP BMD</SelectItem>
+              <SelectItem value="SMA Budi Mulia Dua">SMA BMD</SelectItem>
+              <SelectItem value="PLAI BMD">PLAI BMD</SelectItem>
+              <SelectItem value="VHS">VHS</SelectItem>
             </SelectContent>
           </Select>
           <p class="text-[11px] text-zinc-500">The primary branch or unit this user belongs to.</p>
@@ -133,7 +190,9 @@ const handleRegister = () => {
               Generate
             </Button>
           </div>
-          <p class="text-[11px] text-zinc-500">User will be forced to change this on first login.</p>
+          <p class="text-[11px]" :class="formData.password.length > 0 && formData.password.length < 6 ? 'text-red-500 font-bold' : 'text-zinc-500'">
+            {{ formData.password.length > 0 && formData.password.length < 6 ? 'Password is too short (min 6 characters)' : 'User will be forced to change this on first login.' }}
+          </p>
         </div>
 
         <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 flex gap-3">
@@ -150,8 +209,14 @@ const handleRegister = () => {
 
     <!-- Actions -->
     <div class="pt-6 border-t border-zinc-200 flex justify-end">
-      <Button size="lg" class="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[150px]" @click="handleRegister">
-        Create User
+      <Button 
+        size="lg" 
+        class="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[150px] gap-2" 
+        :disabled="isSubmitting"
+        @click="handleRegister"
+      >
+        <Loader2 v-if="isSubmitting" class="h-4 w-4 animate-spin" />
+        {{ isSubmitting ? 'Creating...' : 'Create User' }}
       </Button>
     </div>
   </div>
