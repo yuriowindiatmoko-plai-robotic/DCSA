@@ -193,8 +193,22 @@ const isClientMode = computed(() => props.mode === 'client')
               <TableBody>
                  <TableRow v-for="(item, idx) in requestedDistribution" :key="idx">
                    <TableCell class="font-bold text-zinc-900">{{ item.category }}</TableCell>
-                   <TableCell class="font-bold text-zinc-900">{{ item.location }}</TableCell>
-                   <TableCell class="font-bold text-zinc-900">{{ item.type }}</TableCell>
+                   <TableCell>
+                      <Input 
+                        v-if="isClientMode"
+                        v-model="item.location" 
+                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                      />
+                      <div v-else class="font-bold text-zinc-900">{{ item.location }}</div>
+                   </TableCell>
+                   <TableCell>
+                      <Input 
+                        v-if="isClientMode"
+                        v-model="item.type" 
+                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                      />
+                      <div v-else class="font-bold text-zinc-900">{{ item.type }}</div>
+                   </TableCell>
                    <TableCell>
                       <Input 
                         v-if="isClientMode"
