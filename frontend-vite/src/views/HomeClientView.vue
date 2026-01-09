@@ -40,6 +40,16 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const handleLogout = () => {
+    authStore.logout()
+    router.push('/login')
+}
 
 
 // Types
@@ -194,7 +204,7 @@ const getStatusClasses = (status: string) => {
           </a>
         </nav>
         <div class="mt-auto pt-6 border-t border-zinc-800">
-          <Button variant="ghost" class="w-full justify-start gap-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 transition-colors">
+          <Button @click="handleLogout" variant="ghost" class="w-full justify-start gap-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 transition-colors">
             <LogOut class="h-5 w-5" />
             <span>Sign Out</span>
           </Button>

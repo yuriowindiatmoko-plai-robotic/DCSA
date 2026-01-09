@@ -9,24 +9,47 @@ const API_URL = 'http://localhost:8000'
 
 export const useAuthStore = defineStore('auth', () => {
     const token = ref<string | null>(localStorage.getItem('token'))
-    const user = ref<any>(null)
-
+    const userRole = ref<string | null>(localStorage.getItem('role'))
+    const username = ref<string | null>(localStorage.getItem('username'))
+    const institutionId = ref<string | null>(localStorage.getItem('institution_id'))
 
     const isAuthenticated = computed(() => !!token.value)
+    
+    // Getter for role
+    const getRole = computed(() => userRole.value)
 
-    async function login(username: string, password: string) {
+    async function login(usernameInput: string, passwordInput: string) {
         try {
-            const formData = new FormData()
-            formData.append('username', username)
-            formData.append('password', password)
+            const params = new URLSearchParams()
+            params.append('grant_type', 'password')
+            params.append('username', usernameInput)
+            params.append('password', passwordInput)
+            params.append('scope', '')
+            params.append('client_id', 'string')
+            params.append('client_secret', 'string')
 
-            const response = await axios.post(`${API_URL}/api/auth/login`, formData)
+            const response = await axios.post(`${API_URL}/api/auth/login`, params, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            })
 
+            // Store data in state
             token.value = response.data.access_token
-            localStorage.setItem('token', token.value as string)
+            userRole.value = response.data.role
+            username.value = response.data.username
+            institutionId.value = response.data.institution_id
 
-            // Optionally fetch user details here if needed immediately
-            // user.value = { ... }
+            // Store data in localStorage
+            if (token.value) localStorage.setItem('token', token.value)
+            if (userRole.value) localStorage.setItem('role', userRole.value)
+            if (username.value) localStorage.setItem('username', username.value)
+            // handle institution_id possibly being null/undefined
+            if (institutionId.value) {
+                localStorage.setItem('institution_id', institutionId.value)
+            } else {
+                localStorage.removeItem('institution_id')
+            }
 
             return { success: true }
         } catch (error: any) {
@@ -40,11 +63,24 @@ export const useAuthStore = defineStore('auth', () => {
 
     function logout() {
         token.value = null
-        user.value = null
+        userRole.value = null
+        username.value = null
+        institutionId.value = null
+        
         localStorage.removeItem('token')
-        // We can't use router here directly smoothly inside setup store sometimes without proper context
-        // But usually returning it works or calling it from component
+        localStorage.removeItem('role')
+        localStorage.removeItem('username')
+        localStorage.removeItem('institution_id')
     }
 
-    return { token, user, isAuthenticated, login, logout }
+    return { 
+        token, 
+        userRole, 
+        username, 
+        institutionId, 
+        isAuthenticated, 
+        getRole, 
+        login, 
+        logout 
+    }
 })
