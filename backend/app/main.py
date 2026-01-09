@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth
+from app.routers import auth, orders, edit_requests
 from app.db import engine
 from app.db.engine import engine, SessionLocal
 from app.db.base import Base
@@ -38,3 +38,6 @@ def healthcheck():
 
 # Routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
+app.include_router(edit_requests.router, prefix="/api/edit-requests", tags=["Edit Requests"])
+
