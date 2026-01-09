@@ -7,6 +7,7 @@ from typing import Optional
 from uuid import UUID
 
 from app.db.engine import SessionLocal
+from app.dependencies import require_dk_admin
 from app.models.order import Order
 from app.models.user import User
 from app.schemas.order import (
@@ -178,8 +179,7 @@ def update_order_status(
     order_id: UUID,
     status_update: OrderStatusUpdate,
     db: Session = Depends(get_db),
-    # TODO: Add DK Admin auth check
-    approved_by: Optional[UUID] = Query(None, description="Admin user ID"),
+    current_user: User = Depends(require_dk_admin),
 ):
     order = db.get(Order, order_id)
     if not order:
@@ -199,7 +199,7 @@ def update_order_status(
     order.status = status_update.status
     
     if status_update.status in ["APPROVED", "APPROVED_EDITED", "REJECTED", "NOTED"]:
-        order.approved_by = approved_by
+        order.approved_by = current_user.id
         order.approved_at = datetime.utcnow()
     
     db.commit()
