@@ -17,20 +17,45 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Save, AlertTriangle, Check, X, MessageSquare } from 'lucide-vue-next'
+import { Save, AlertTriangle, Check, X, MessageSquare, Plus, Trash2 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // Props & Emits
-const props = defineProps<{
-  open: boolean
-  order: any
-  mode?: 'admin' | 'client'
-}>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    order: any
+    mode?: 'admin' | 'client'
+  }>(),
+  {
+    mode: 'admin'  // Default to admin mode (read-only)
+  }
+)
 
 const emit = defineEmits(['update:open', 'save', 'approve-edit', 'reject-edit'])
 
+// Types
+interface MenuItem {
+  menu: string
+  total_qty: number
+}
+
+interface MenuDetails {
+  heavy_meal?: MenuItem[]
+  snack?: MenuItem[]
+  beverages?: MenuItem[]
+}
+
+interface DistributionItem {
+  category: string
+  portions: number
+  location: string
+  type: string
+}
+
 // Mock SLA cutoff (Simulate that the SLA was 48h ago)
-const isSLAExceeded = ref(true) 
+const isSLAExceeded = ref(true)
 
 // Local State
 const formData = ref({
@@ -42,25 +67,64 @@ const formData = ref({
   status: '',
 })
 
-interface DistributionItem {
-  category: string
-  portions: number
-  location: string
-  type: string
-}
-
-// Original Data (Snapshot)
-const originalDistribution = ref<DistributionItem[]>([
-  { category: 'Staff (Reguler)', portions: 150, location: 'Lobby 1, Floor 2', type: 'Buffet' },
-  { category: 'Manager', portions: 25, location: 'Meeting Room A', type: 'Box Meal' },
-  { category: 'VIP Guest', portions: 10, location: 'VIP Lounge', type: 'Plated Service' },
-])
+// Original Data (Snapshot) - loaded from order prop
+const originalDistribution = ref<DistributionItem[]>([])
 
 // Requested Changes (Mutable for Client, Read-only for Admin)
-const requestedDistribution = ref<DistributionItem[]>(JSON.parse(JSON.stringify(originalDistribution.value)))
+const requestedDistribution = ref<DistributionItem[]>([])
+
+// Menu Details State
+const originalMenuDetails = ref<MenuDetails>({
+  heavy_meal: [],
+  snack: [],
+  beverages: []
+})
+
+const requestedMenuDetails = ref<MenuDetails>({
+  heavy_meal: [],
+  snack: [],
+  beverages: []
+})
 
 const note = ref('')
 const showRejectNote = ref(false)
+
+// Menu categories for display
+const menuCategories = [
+  { key: 'heavy_meal', label: 'Heavy Meal', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  { key: 'snack', label: 'Snack', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  { key: 'beverages', label: 'Beverages', color: 'bg-blue-50 text-blue-700 border-blue-200' }
+]
+
+// Add menu item helper
+const addMenuItem = (category: keyof MenuDetails) => {
+  if (!requestedMenuDetails.value[category]) {
+    requestedMenuDetails.value[category] = []
+  }
+  requestedMenuDetails.value[category]!.push({ menu: '', total_qty: 0 })
+}
+
+// Remove menu item helper
+const removeMenuItem = (category: keyof MenuDetails, index: number) => {
+  if (requestedMenuDetails.value[category]) {
+    requestedMenuDetails.value[category]!.splice(index, 1)
+  }
+}
+
+// Add staff allocation item helper
+const addStaffAllocation = () => {
+  requestedDistribution.value.push({
+    category: '',
+    portions: 0,
+    location: '',
+    type: ''
+  })
+}
+
+// Remove staff allocation item helper
+const removeStaffAllocation = (index: number) => {
+  requestedDistribution.value.splice(index, 1)
+}
 
 // Logic to calculate diffs
 const getDiff = (original: number, requested: number) => {
@@ -68,20 +132,68 @@ const getDiff = (original: number, requested: number) => {
 }
 
 const hasChanges = computed(() => {
-  return JSON.stringify(originalDistribution.value) !== JSON.stringify(requestedDistribution.value)
+  const distributionChanged = JSON.stringify(originalDistribution.value) !== JSON.stringify(requestedDistribution.value)
+  const menuChanged = JSON.stringify(originalMenuDetails.value) !== JSON.stringify(requestedMenuDetails.value)
+  return distributionChanged || menuChanged
 })
 
 // Watch for prop changes to update local state
 watch(() => props.order, (newOrder) => {
   if (newOrder) {
     formData.value = { ...newOrder }
-    // In a real app, we'd fetch specific edit requests here
+
+    // Load staff_allocation from order data
+    if (newOrder.staff_allocation) {
+      const allocationItems: DistributionItem[] = []
+      for (const [key, value] of Object.entries(newOrder.staff_allocation)) {
+        if (typeof value === 'object' && value !== null) {
+          allocationItems.push({
+            category: key,
+            portions: (value as any).total || 0,
+            location: (value as any).drop_off_location || '',
+            type: (value as any).serving_type || ''
+          })
+        }
+      }
+      originalDistribution.value = allocationItems
+      requestedDistribution.value = JSON.parse(JSON.stringify(allocationItems))
+    } else {
+      originalDistribution.value = []
+      requestedDistribution.value = []
+    }
+
+    // Load menu_details if available
+    if (newOrder.menu_details) {
+      originalMenuDetails.value = JSON.parse(JSON.stringify(newOrder.menu_details))
+      requestedMenuDetails.value = JSON.parse(JSON.stringify(newOrder.menu_details))
+    } else {
+      originalMenuDetails.value = { heavy_meal: [], snack: [], beverages: [] }
+      requestedMenuDetails.value = { heavy_meal: [], snack: [], beverages: [] }
+    }
   }
 }, { immediate: true })
 
 const handleSaveClient = () => {
-  // Logic to submit edit request
-  console.log("Submitting edit request", requestedDistribution.value)
+  // Convert requestedDistribution to staff_allocation format
+  const staffAllocation: Record<string, { total: number; drop_off_location: string; serving_type: string }> = {}
+  for (const item of requestedDistribution.value) {
+    if (item.category) {
+      staffAllocation[item.category] = {
+        total: item.portions || 0,
+        drop_off_location: item.location || '',
+        serving_type: item.type || ''
+      }
+    }
+  }
+
+  // Logic to submit edit request with both staff allocation and menu details
+  const changes = {
+    order_id: props.order?.order_id || props.order?.id,
+    staff_allocation: staffAllocation,
+    menu_details: requestedMenuDetails.value
+  }
+  console.log("Submitting edit request", changes)
+  emit('save', changes)
   emit('update:open', false)
 }
 
@@ -108,14 +220,14 @@ const isClientMode = computed(() => props.mode === 'client')
         <div>
            <div class="flex items-center gap-3 mb-1">
              <h2 class="text-xl font-bold text-zinc-900">
-               {{ isClientMode ? 'Edit Request' : 'Review Edit Request' }}: {{ order?.orderId || order?.id }}
+               Edit Order: {{ order?.order_id?.slice(0, 8) || order?.id?.slice(0, 8) }}...
              </h2>
              <Badge variant="outline" class="bg-blue-50 text-blue-700 border-blue-200">
-                Pending Action
+                {{ order?.status || 'DRAFT' }}
              </Badge>
            </div>
            <p class="text-sm text-zinc-500">
-             {{ isClientMode ? 'Submit changes for approval.' : 'Review requests submitted by the client.' }}
+             {{ isClientMode ? 'Submit changes for approval.' : 'Review and approve edit requests.' }}
            </p>
         </div>
         
@@ -141,15 +253,15 @@ const isClientMode = computed(() => props.mode === 'client')
         <!-- Left Column: ORIGINAL ALLOCATION -->
         <div class="space-y-4">
           <div class="flex items-center justify-between border-b pb-2">
-             <h3 class="font-bold text-zinc-500 text-sm uppercase tracking-wide">Original Allocation</h3>
-             <Badge variant="secondary" class="bg-zinc-100 text-zinc-600">Approved Oct 10</Badge>
+             <h3 class="font-bold text-zinc-500 text-sm uppercase tracking-wide">Current Allocation</h3>
+             <Badge variant="secondary" class="bg-zinc-100 text-zinc-600">Current</Badge>
           </div>
 
           <div class="border rounded-lg overflow-hidden bg-zinc-50/50">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Category/Staff</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead class="text-right">Qty</TableHead>
@@ -157,10 +269,15 @@ const isClientMode = computed(() => props.mode === 'client')
               </TableHeader>
               <TableBody>
                  <TableRow v-for="(item, idx) in originalDistribution" :key="idx">
-                   <TableCell class="font-medium text-zinc-700">{{ item.category }}</TableCell>
-                   <TableCell class="text-zinc-600">{{ item.location }}</TableCell>
-                   <TableCell class="text-zinc-600">{{ item.type }}</TableCell>
-                   <TableCell class="text-right font-medium">{{ item.portions }}</TableCell>
+                   <TableCell class="font-medium text-zinc-700">{{ item.category || '-' }}</TableCell>
+                   <TableCell class="text-zinc-600">{{ item.location || '-' }}</TableCell>
+                   <TableCell class="text-zinc-600">{{ item.type || '-' }}</TableCell>
+                   <TableCell class="text-right font-medium">{{ item.portions || 0 }}</TableCell>
+                 </TableRow>
+                 <TableRow v-if="originalDistribution.length === 0">
+                   <TableCell colspan="4" class="text-center py-8 text-zinc-400 text-sm">
+                     No current allocation
+                   </TableCell>
                  </TableRow>
               </TableBody>
             </Table>
@@ -171,56 +288,78 @@ const isClientMode = computed(() => props.mode === 'client')
         <div class="space-y-4">
           <div class="flex items-center justify-between border-b pb-2">
              <div class="flex items-center gap-2">
-               <h3 class="font-bold text-emerald-600 text-sm uppercase tracking-wide">Requested Changes</h3>
+               <h3 class="font-bold text-emerald-600 text-sm uppercase tracking-wide">Staff Allocation</h3>
                <div class="bg-emerald-100 p-1 rounded-full">
                  <div class="bg-emerald-500 h-2 w-2 rounded-full"></div>
                </div>
              </div>
-             <Badge class="bg-emerald-100 text-emerald-700 border-emerald-200">Pending</Badge>
+             <div class="flex items-center gap-2">
+               <Badge class="bg-emerald-100 text-emerald-700 border-emerald-200">Pending</Badge>
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 @click="addStaffAllocation"
+                 class="h-7 px-2 text-xs gap-1 text-emerald-600 hover:bg-emerald-50"
+               >
+                 <Plus class="h-3 w-3" />
+                 Add Staff
+               </Button>
+             </div>
           </div>
 
           <div class="border rounded-lg overflow-hidden bg-white ring-4 ring-emerald-50/50">
             <Table>
               <TableHeader class="bg-emerald-50/30">
                 <TableRow>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Category/Staff</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead class="text-center w-[100px]">Qty</TableHead>
-                  <TableHead class="w-[60px]"></TableHead>
+                  <TableHead class="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                 <TableRow v-for="(item, idx) in requestedDistribution" :key="idx">
-                   <TableCell class="font-bold text-zinc-900">{{ item.category }}</TableCell>
+                 <TableRow v-for="(item, idx) in requestedDistribution" :key="idx" class="group">
                    <TableCell>
-                      <Input 
-                        v-if="isClientMode"
-                        v-model="item.location" 
-                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                      <Input
+                        v-model="item.category"
+                        placeholder="Staff name"
+                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500"
                       />
-                      <div v-else class="font-bold text-zinc-900">{{ item.location }}</div>
                    </TableCell>
                    <TableCell>
-                      <Input 
-                        v-if="isClientMode"
-                        v-model="item.type" 
-                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                      <Input
+                        v-model="item.location"
+                        placeholder="Location"
+                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500"
                       />
-                      <div v-else class="font-bold text-zinc-900">{{ item.type }}</div>
                    </TableCell>
                    <TableCell>
-                      <Input 
-                        v-if="isClientMode"
-                        v-model="item.portions" 
-                        type="number" 
-                        class="h-8 w-20 text-center font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                      <Input
+                        v-model="item.type"
+                        placeholder="Type"
+                        class="h-8 font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500"
                       />
-                      <div v-else class="text-center font-bold text-zinc-900">{{ item.portions }}</div>
                    </TableCell>
                    <TableCell>
-                      <span 
-                        v-if="originalDistribution[idx] && getDiff(originalDistribution[idx].portions, item.portions) !== 0"
+                      <Input
+                        v-model.number="item.portions"
+                        type="number"
+                        placeholder="0"
+                        class="h-8 w-20 text-center font-bold bg-white border-zinc-300 focus:border-emerald-500 focus:ring-emerald-500"
+                      />
+                   </TableCell>
+                   <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        @click="removeStaffAllocation(idx)"
+                        class="h-8 w-8 text-zinc-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 class="h-4 w-4" />
+                      </Button>
+                      <span
+                        v-if="!isClientMode && originalDistribution[idx] && getDiff(originalDistribution[idx].portions, item.portions) !== 0"
                         class="text-xs font-bold px-1.5 py-0.5 rounded-full"
                         :class="getDiff(originalDistribution[idx].portions, item.portions) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
                       >
@@ -228,11 +367,84 @@ const isClientMode = computed(() => props.mode === 'client')
                       </span>
                    </TableCell>
                  </TableRow>
+                 <TableRow v-if="requestedDistribution.length === 0">
+                   <TableCell colspan="5" class="text-center py-8 text-zinc-400 text-sm">
+                     No staff allocation items. Click "Add Staff" to add items.
+                   </TableCell>
+                 </TableRow>
               </TableBody>
             </Table>
           </div>
         </div>
 
+      </div>
+
+      <!-- Menu Details Section -->
+      <div class="border-t border-zinc-100"></div>
+      <div class="p-6 bg-zinc-50/30 space-y-6">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-zinc-700 text-sm uppercase tracking-wide">Menu Details</h3>
+          <Badge variant="outline" class="bg-indigo-50 text-indigo-700 border-indigo-200">
+            Add-on Items
+          </Badge>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4">
+          <!-- Menu Category Cards -->
+          <div v-for="category in menuCategories" :key="category.key" class="border rounded-lg bg-white overflow-hidden">
+            <div class="px-4 py-2 border-b flex items-center justify-between" :class="category.color">
+              <span class="font-semibold text-xs uppercase">{{ category.label }}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="addMenuItem(category.key as keyof MenuDetails)"
+                class="h-6 px-2 text-xs opacity-70 hover:opacity-100"
+              >
+                <Plus class="h-3 w-3 mr-1" />
+                Add Item
+              </Button>
+            </div>
+
+            <div class="divide-y divide-zinc-50">
+              <div
+                v-for="(item, idx) in requestedMenuDetails[category.key as keyof MenuDetails]"
+                :key="idx"
+                class="p-3 flex items-center gap-3 group"
+              >
+                <div class="flex-1 grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-[10px] font-semibold text-zinc-500 uppercase">Menu Name</label>
+                    <Input
+                      v-model="item.menu"
+                      placeholder="Enter menu name"
+                      class="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-[10px] font-semibold text-zinc-500 uppercase">Quantity</label>
+                    <Input
+                      v-model.number="item.total_qty"
+                      type="number"
+                      placeholder="0"
+                      class="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  @click="removeMenuItem(category.key as keyof MenuDetails, idx)"
+                  class="h-8 w-8 text-zinc-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </Button>
+              </div>
+              <div v-if="!requestedMenuDetails[category.key as keyof MenuDetails]?.length" class="p-4 text-center text-zinc-400 text-sm">
+                No items in {{ category.label.toLowerCase() }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer Actions -->

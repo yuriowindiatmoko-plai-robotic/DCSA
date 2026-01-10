@@ -25,6 +25,7 @@ class Order(Base):
     )
     total_portion: Mapped[int] = mapped_column(Integer, nullable=False)
     staff_allocation: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    menu_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     dropping_location_food: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )

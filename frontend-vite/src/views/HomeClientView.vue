@@ -56,6 +56,17 @@ const handleLogout = () => {
 }
 
 // Types - Updated to match backend API response
+interface MenuItem {
+  menu: string
+  total_qty: number
+}
+
+interface MenuDetails {
+  heavy_meal?: MenuItem[]
+  snack?: MenuItem[]
+  beverages?: MenuItem[]
+}
+
 interface Order {
   order_id: string
   institution_id: string
@@ -64,6 +75,7 @@ interface Order {
   total_portion: number
   dropping_location_food: string
   staff_allocation: Record<string, { total: number; drop_off_location: string; serving_type: string }>
+  menu_details?: MenuDetails | null
   status: string
 }
 
@@ -251,8 +263,34 @@ const handleEditDetails = (order: Order) => {
   isModalOpen.value = true
 }
 
-const handleSaveChanges = (updatedOrder: Order) => {
-  isModalOpen.value = false
+const handleSaveChanges = async (changes: any) => {
+  try {
+    // Prepare the requested_changes array format
+    const requestedChanges = [
+      { staff_allocation: changes.staff_allocation },
+      { menu_details: changes.menu_details }
+    ]
+
+    // Submit edit request to backend
+    await axios.post(`${API_URL}/api/edit-requests/`, {
+      order_id: changes.order_id,
+      requested_changes: requestedChanges,
+      change_reason: null  // Can be added later if needed
+    }, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      params: {
+        submitted_by: authStore.username  // Or use user ID if available
+      }
+    })
+
+    // Refresh orders to show updated status
+    fetchOrders()
+    isModalOpen.value = false
+  } catch (error) {
+    console.error('Failed to submit edit request:', error)
+  }
 }
 
 // Notifications Logic

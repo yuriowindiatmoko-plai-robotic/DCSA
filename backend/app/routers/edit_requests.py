@@ -48,12 +48,22 @@ def determine_sla_status(order: Order) -> str:
     return "NOTED"
 
 
-def merge_changes_to_order(order: Order, requested_changes: dict, db: Session):
+def merge_changes_to_order(order: Order, requested_changes: list, db: Session):
     """
-    Merge requested_changes into order's staff_allocation and recalculate total_portion.
+    Merge requested_changes array into order.
+    requested_changes format: [{"staff_allocation": {...}}, {"menu_details": {...}}]
+    - Index 0: staff_allocation (dict)
+    - Index 1: menu_details (dict)
     """
-    order.staff_allocation = requested_changes
-    order.total_portion = calculate_total_from_allocation(requested_changes)
+    # Index 0: staff_allocation
+    if len(requested_changes) > 0 and "staff_allocation" in requested_changes[0]:
+        order.staff_allocation = requested_changes[0]["staff_allocation"]
+        order.total_portion = calculate_total_from_allocation(requested_changes[0]["staff_allocation"])
+
+    # Index 1: menu_details
+    if len(requested_changes) > 1 and "menu_details" in requested_changes[1]:
+        order.menu_details = requested_changes[1]["menu_details"]
+
     order.status = "APPROVED_EDITED"
     order.updated_at = datetime.utcnow()
 
@@ -80,18 +90,24 @@ def create_edit_request(
     
     # Determine SLA status
     sla_status = determine_sla_status(order)
-    
+
+    # Store both staff_allocation and menu_details in array format
+    original_breakdown = [
+        {"staff_allocation": order.staff_allocation},
+        {"menu_details": order.menu_details or {}}
+    ]
+
     edit_request = EditRequest(
         order_id=order.order_id,
         institution_id=order.institution_id,
-        original_breakdown=order.staff_allocation,
-        requested_changes=edit_request_data.requested_changes,
+        original_breakdown=original_breakdown,
+        requested_changes=edit_request_data.requested_changes,  # Expected: [{"staff_allocation": {...}}, {"menu_details": {...}}]
         change_reason=edit_request_data.change_reason,
         sla_status=sla_status,
         approval_status="PENDING",
         submitted_by=submitted_by,
     )
-    
+
     # Update order status to indicate edit request
     order.status = "REQUEST_TO_EDIT"
     
