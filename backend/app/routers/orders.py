@@ -1,15 +1,16 @@
 # app/routers/orders.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, date
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from app.db.engine import SessionLocal
 from app.dependencies import require_dk_admin
 from app.models.order import Order
 from app.models.user import User
+from app.models.institution import Institution
 from app.schemas.order import (
     OrderCreate,
     OrderUpdate,
@@ -37,34 +38,65 @@ def calculate_total_from_allocation(staff_allocation: dict) -> int:
     return total
 
 
+def order_to_dict_with_institution(order: Order) -> Dict[str, Any]:
+    """Convert Order object to dict with institution_name included"""
+    order_dict = {
+        "order_id": order.order_id,
+        "institution_id": order.institution_id,
+        "institution_name": order.institution.name if order.institution else None,
+        "order_date": order.order_date,
+        "order_type": order.order_type,
+        "total_portion": order.total_portion,
+        "staff_allocation": order.staff_allocation,
+        "dropping_location_food": order.dropping_location_food,
+        "status": order.status,
+        "created_by": order.created_by,
+        "submitted_at": order.submitted_at,
+        "approved_by": order.approved_by,
+        "approved_at": order.approved_at,
+        "special_notes": order.special_notes,
+        "is_locked": order.is_locked,
+        "created_at": order.created_at,
+        "updated_at": order.updated_at,
+    }
+    return order_dict
+
+
 # 3.1 Get Orders List
 @router.get("/", response_model=list[OrderRead])
 def get_orders(
     db: Session = Depends(get_db),
     institution_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
+    order_date: Optional[date] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
-    query = select(Order)
-    
+    query = select(Order).options(joinedload(Order.institution))
+
     if institution_id:
         query = query.where(Order.institution_id == institution_id)
     if status:
         query = query.where(Order.status == status)
-    
+    if order_date:
+        query = query.where(Order.order_date == order_date)
+
     query = query.order_by(Order.order_date.desc()).offset(skip).limit(limit)
-    orders = db.execute(query).scalars().all()
-    return orders
+    orders = db.execute(query).scalars().unique().all()
+
+    # Manually construct response with institution_name
+    result = [order_to_dict_with_institution(order) for order in orders]
+    return result
 
 
 # 3.2 Get Order Detail
 @router.get("/{order_id}", response_model=OrderRead)
 def get_order(order_id: UUID, db: Session = Depends(get_db)):
-    order = db.get(Order, order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return order
+    return order_to_dict_with_institution(order)
 
 
 # 3.3 Create Order (Draft)
@@ -79,7 +111,7 @@ def create_order(
     staff_allocation_dict = {
         k: v.dict() for k, v in order_data.staff_allocation.items()
     }
-    
+
     order = Order(
         institution_id=order_data.institution_id,
         order_date=order_data.order_date,
@@ -94,27 +126,30 @@ def create_order(
     db.add(order)
     db.commit()
     db.refresh(order)
-    return order
+
+    # Load institution relationship and return with institution_name
+    db.refresh(order, ["institution"])
+    return order_to_dict_with_institution(order)
 
 
 # 3.4 Submit Order
 @router.post("/{order_id}/submit", response_model=OrderRead)
 def submit_order(order_id: UUID, db: Session = Depends(get_db)):
-    order = db.get(Order, order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     if order.status != "DRAFT":
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Only DRAFT orders can be submitted. Current status: {order.status}"
         )
-    
+
     order.status = "ORDERED"
     order.submitted_at = datetime.utcnow()
     db.commit()
-    db.refresh(order)
-    return order
+    return order_to_dict_with_institution(order)
 
 
 # 3.5 Update Order (Draft Only)
@@ -124,18 +159,19 @@ def update_order(
     order_data: OrderUpdate,
     db: Session = Depends(get_db),
 ):
-    order = db.get(Order, order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     if order.status != "DRAFT":
         raise HTTPException(
             status_code=400,
             detail=f"Only DRAFT orders can be updated. Current status: {order.status}"
         )
-    
+
     update_data = order_data.dict(exclude_unset=True)
-    
+
     # Convert StaffAllocationItem to dict if present
     if "staff_allocation" in update_data and update_data["staff_allocation"]:
         staff_allocation_dict = {
@@ -143,17 +179,16 @@ def update_order(
             for k, v in update_data["staff_allocation"].items()
         }
         update_data["staff_allocation"] = staff_allocation_dict
-        
+
         # Recalculate total_portion if not explicitly provided
         if "total_portion" not in update_data:
             update_data["total_portion"] = calculate_total_from_allocation(staff_allocation_dict)
-    
+
     for key, value in update_data.items():
         setattr(order, key, value)
-    
+
     db.commit()
-    db.refresh(order)
-    return order
+    return order_to_dict_with_institution(order)
 
 
 # 3.6 Delete Order (Draft Only)
@@ -181,30 +216,30 @@ def update_order_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_dk_admin),
 ):
-    order = db.get(Order, order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     valid_statuses = [
-        "DRAFT", "REQUEST_TO_EDIT", "APPROVED_EDITED", "APPROVED", 
+        "DRAFT", "REQUEST_TO_EDIT", "APPROVED_EDITED", "APPROVED",
         "REJECTED", "NOTED", "PROCESSING", "COOKING", "READY", "DELIVERED", "ORDERED"
     ]
-    
+
     if status_update.status not in valid_statuses:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status. Must be one of: {valid_statuses}"
         )
-    
+
     order.status = status_update.status
-    
+
     if status_update.status in ["APPROVED", "APPROVED_EDITED", "REJECTED", "NOTED"]:
         order.approved_by = current_user.id
         order.approved_at = datetime.utcnow()
-    
+
     db.commit()
-    db.refresh(order)
-    return order
+    return order_to_dict_with_institution(order)
 
 
 # 5.2 Get Order Status Tracker

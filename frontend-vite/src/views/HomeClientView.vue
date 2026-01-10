@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { 
-  Search, 
-  Bell, 
+import { ref, computed, onMounted, watch } from 'vue'
+import {
+  Search,
+  Bell,
   MoreHorizontal,
   AlertCircle,
   Menu,
@@ -11,7 +11,8 @@ import {
   ChevronRight,
   LayoutDashboard,
   LogOut,
-  ArrowUpDown
+  ArrowUpDown,
+  Loader2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,77 +43,172 @@ import {
 import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import axios from 'axios'
+
+const API_URL = 'http://localhost:8000'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const handleLogout = () => {
-    authStore.logout()
-    router.push('/login')
+  authStore.logout()
+  router.push('/login')
 }
 
-
-// Types
+// Types - Updated to match backend API response
 interface Order {
-  id: number
-  orderId: string
-  date: string
-  institution: string
-  portions: number
-  location: string
-  staff: number
+  order_id: string
+  institution_id: string
+  institution_name: string
+  order_date: string
+  total_portion: number
+  dropping_location_food: string
+  staff_allocation: Record<string, { total: number; drop_off_location: string; serving_type: string }>
   status: string
-  alerts: number | null
-  ratings: number
 }
 
 // Sidebar state
 const isSidebarOpen = ref(true)
 const toggleSidebar = () => isSidebarOpen.value = !isSidebarOpen.value
 
-// Mock Logged In User Institution
-const currentInstitution = 'VHS'
+// Loading State
+const isLoading = ref(true)
+const isInitialLoad = ref(true)
+
+// Orders Data from API
+const rawOrders = ref<Order[]>([])
+
+// Pagination State
+const pageSize = ref(10)
+const currentPage = ref(1)
+const totalOrders = ref(0)
 
 // Filters State
 const todayString = new Date().toISOString().split('T')[0]
-const filterDate = ref(todayString)
+const filterDate = ref<string | null>(null)
 const filterSearch = ref('')
-
 const filterStatus = ref('All Orders')
 
 // Modal State
 const isModalOpen = ref(false)
 const selectedOrder = ref<Order | null>(null)
 
-const handleEditDetails = (order: Order) => {
-  selectedOrder.value = { ...order } // Clone to avoid direct mutation
-  isModalOpen.value = true
-}
+const statusOptions = [
+  'All Orders',
+  'DRAFT',
+  'REQUEST_TO_EDIT',
+  'APPROVED_EDITED',
+  'APPROVED',
+  'REJECTED',
+  'NOTED',
+  'PROCESSING',
+  'COOKING',
+  'READY',
+  'DELIVERED',
+  'ORDERED'
+]
 
-const handleSaveChanges = (updatedOrder: Order) => {
-  const index = rawOrders.value.findIndex(o => o.id === updatedOrder.id)
-  if (index !== -1) {
-    rawOrders.value[index] = { ...updatedOrder }
+// Search mode: 'list' for normal list view, 'single' for searching by order_id
+const searchMode = ref<'list' | 'single'>('list')
+
+// Fetch orders from API with RBAC filtering (CLIENT_ADMIN only sees their institution's orders)
+const fetchOrders = async () => {
+  try {
+    isLoading.value = true
+    searchMode.value = 'list'
+    const params = new URLSearchParams()
+
+    // RBAC: Filter by institution_id for CLIENT_ADMIN
+    if (authStore.institutionId) {
+      params.append('institution_id', authStore.institutionId)
+    }
+
+    // Add pagination params
+    params.append('skip', ((currentPage.value - 1) * pageSize.value).toString())
+    params.append('limit', pageSize.value.toString())
+
+    // Add status filter
+    if (filterStatus.value && filterStatus.value !== 'All Orders') {
+      params.append('status', filterStatus.value)
+    }
+
+    // Add date filter
+    if (filterDate.value) {
+      params.append('order_date', filterDate.value)
+    }
+
+    const response = await axios.get(`${API_URL}/api/orders/`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      params
+    })
+
+    rawOrders.value = response.data
+    totalOrders.value = response.data.length
+  } catch (error) {
+    console.error('Failed to fetch orders:', error)
+  } finally {
+    isLoading.value = false
+    isInitialLoad.value = false
   }
-  isModalOpen.value = false
 }
 
-const statusOptions = ['All Orders', 'Requested Edit', 'Edited', 'Cooking', 'Delivered']
+// Search by order_id (single order)
+const searchByOrderId = async (orderId: string) => {
+  try {
+    isLoading.value = true
+    searchMode.value = 'single'
 
-// Dummy Data (Same as Admin, but will be filtered)
-const rawOrders = ref<Order[]>([
-  { id: 1, orderId: '#ORD-2091', date: '2023-10-24', institution: 'VHS', portions: 450, location: 'Main Hall', staff: 3, status: 'Requested Edit', alerts: 2, ratings: 4.8 },
-  { id: 2, orderId: '#ORD-2092', date: '2023-10-24', institution: 'PLAI', portions: 1200, location: 'Main Hall', staff: 5, status: 'Ordered', alerts: null, ratings: 0 },
-  { id: 3, orderId: '#ORD-2095', date: '2023-10-25', institution: 'SD BMD Panjen', portions: 300, location: 'Classroom', staff: 5, status: 'Edited', alerts: null, ratings: 0 },
-  { id: 4, orderId: '#ORD-2101', date: '2023-10-25', institution: 'SMP BMD', portions: 50, location: 'Cafetaria', staff: 4, status: 'Cooking', alerts: null, ratings: 0 },
-  { id: 5, orderId: '#ORD-2088', date: '2023-10-23', institution: 'SMA BMD', portions: 850, location: 'Main Hall', staff: 5, status: 'Delivered', alerts: null, ratings: 0 },
-  // Add more for pagination demo
-  { id: 6, orderId: '#ORD-3001', date: '2023-10-24', institution: 'Binus Univ', portions: 150, location: 'Aula', staff: 2, status: 'Delivered', alerts: null, ratings: 4.5 },
-  { id: 7, orderId: '#ORD-3002', date: '2023-10-24', institution: 'VHS', portions: 200, location: 'Main Hall', staff: 3, status: 'Cooking', alerts: 1, ratings: 0 },
-  { id: 8, orderId: '#ORD-3003', date: '2023-10-23', institution: 'PLAI', portions: 500, location: 'Lab', staff: 4, status: 'Edited', alerts: null, ratings: 4.9 },
-])
+    const response = await axios.get(`${API_URL}/api/orders/${orderId}`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    })
 
-// Sorting
+    // Verify the order belongs to the user's institution (for CLIENT_ADMIN)
+    if (authStore.institutionId && response.data.institution_id !== authStore.institutionId) {
+      rawOrders.value = []
+      totalOrders.value = 0
+    } else {
+      rawOrders.value = [response.data]
+      totalOrders.value = 1
+    }
+  } catch (error) {
+    console.error('Failed to search order:', error)
+    rawOrders.value = []
+    totalOrders.value = 0
+  } finally {
+    isLoading.value = false
+    isInitialLoad.value = false
+  }
+}
+
+// Handle search on Enter key
+const handleSearchKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && filterSearch.value.trim()) {
+    currentPage.value = 1
+    searchByOrderId(filterSearch.value.trim())
+  } else if (event.key === 'Enter' && !filterSearch.value.trim()) {
+    // Clear search and fetch all
+    currentPage.value = 1
+    fetchOrders()
+  }
+}
+
+// Initial fetch on mount
+onMounted(() => {
+  fetchOrders()
+})
+
+// Watch filter changes and refetch
+watch([filterStatus, filterDate, currentPage], () => {
+  if (searchMode.value === 'list') {
+    fetchOrders()
+  }
+})
+
+// Handle sort (client-side for now)
 const sortField = ref<keyof Order | null>(null)
 const sortOrder = ref<'asc' | 'desc'>('asc')
 
@@ -125,63 +221,67 @@ const handleSort = (field: keyof Order) => {
   }
 }
 
-// Reactive Pipeline with Data Isolation
+// Client-side filtering (search is now server-side via Enter key)
 const filteredOrders = computed(() => {
-  let result = rawOrders.value.filter(o => {
-    // strict isolation
-    if (o.institution !== currentInstitution) return false
+  let result = [...rawOrders.value]
 
-    const matchDate = filterDate.value ? o.date === filterDate.value : true
-    const matchSearch = o.orderId.toLowerCase().includes(filterSearch.value.toLowerCase()) || 
-                      o.location.toLowerCase().includes(filterSearch.value.toLowerCase())
-    const matchStatus = filterStatus.value === 'All Orders' || o.status === filterStatus.value || (filterStatus.value === 'Ordered' && o.status === 'Ordered')
-    
-    return matchDate && matchSearch && matchStatus
-  })
-
+  // Sorting
   if (sortField.value) {
-    result = [...result].sort((a, b) => {
+    result = result.sort((a, b) => {
       const valA = a[sortField.value!]
       const valB = b[sortField.value!]
       if (valA === valB) return 0
-      if (valA === null) return 1
-      if (valB === null) return -1
-      
+
       const modifier = sortOrder.value === 'asc' ? 1 : -1
-      return valA < valB ? -1 * modifier : 1 * modifier
+      if (valA < valB) return -1 * modifier
+      return 1 * modifier
     })
   }
 
   return result
 })
 
-// Pagination
-const pageSize = ref(10)
-const currentPage = ref(1)
-const paginatedOrders = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredOrders.value.slice(start, end)
-})
+// Computed staff count from staff_allocation
+const getStaffCount = (staffAllocation: Order['staff_allocation']) => {
+  return Object.keys(staffAllocation).length
+}
 
-const totalPages = computed(() => Math.ceil(filteredOrders.value.length / pageSize.value))
+const handleEditDetails = (order: Order) => {
+  selectedOrder.value = { ...order }
+  isModalOpen.value = true
+}
 
-// Notifications Logic (Mocked for Client)
-const requestedEditCount = computed(() => 
-  rawOrders.value.filter(o => o.institution === currentInstitution && (o.status === 'Requested Edit' || o.status === 'Edited')).length
+const handleSaveChanges = (updatedOrder: Order) => {
+  isModalOpen.value = false
+}
+
+// Notifications Logic
+const requestedEditCount = computed(() =>
+  rawOrders.value.filter(o => o.status === 'REQUEST_TO_EDIT' || o.status === 'APPROVED_EDITED').length
 )
-
 
 // Helpers
 const getStatusClasses = (status: string) => {
   switch (status) {
-    case 'Requested Edit': return 'bg-yellow-50 text-yellow-600 border-yellow-100'
-    case 'Ordered': return 'bg-green-50 text-green-600 border-green-100'
-    case 'Edited': return 'bg-blue-50 text-blue-600 border-blue-100'
-    case 'Cooking': return 'bg-orange-50 text-orange-600 border-orange-100'
-    case 'Delivered': return 'bg-emerald-50 text-emerald-600 border-emerald-100'
+    case 'DRAFT': return 'bg-gray-50 text-gray-600 border-gray-100'
+    case 'REQUEST_TO_EDIT': return 'bg-yellow-50 text-yellow-600 border-yellow-100'
+    case 'ORDERED': return 'bg-green-50 text-green-600 border-green-100'
+    case 'APPROVED_EDITED': return 'bg-blue-50 text-blue-600 border-blue-100'
+    case 'APPROVED': return 'bg-teal-50 text-teal-600 border-teal-100'
+    case 'REJECTED': return 'bg-red-50 text-red-600 border-red-100'
+    case 'NOTED': return 'bg-indigo-50 text-indigo-600 border-indigo-100'
+    case 'PROCESSING': return 'bg-cyan-50 text-cyan-600 border-cyan-100'
+    case 'COOKING': return 'bg-orange-50 text-orange-600 border-orange-100'
+    case 'READY': return 'bg-purple-50 text-purple-600 border-purple-100'
+    case 'DELIVERED': return 'bg-emerald-50 text-emerald-600 border-emerald-100'
     default: return 'bg-gray-50 text-gray-500 border-gray-100'
   }
+}
+
+const formatStatus = (status: string) => {
+  return status.replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, l => l.toUpperCase())
 }
 </script>
 
@@ -267,9 +367,10 @@ const getStatusClasses = (status: string) => {
               <label class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Search</label>
               <div class="relative">
                 <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                <Input 
+                <Input
                   v-model="filterSearch"
-                  placeholder="Search order ID, location..." 
+                  placeholder="Search order ID (Press Enter)"
+                  @keydown="handleSearchKeydown"
                   class="h-11 pl-10 bg-zinc-50 border-zinc-200 focus-visible:ring-0"
                 />
               </div>
@@ -279,16 +380,16 @@ const getStatusClasses = (status: string) => {
           <div class="flex items-center gap-3">
              <span class="text-sm font-medium text-emerald-600 mr-2">Status:</span>
              <div class="flex flex-wrap gap-2">
-               <button 
-                 v-for="status in statusOptions" 
+               <button
+                 v-for="status in statusOptions"
                  :key="status"
-                 @click="filterStatus = status"
+                 @click="filterStatus = status; currentPage = 1"
                  class="px-4 py-1.5 rounded-full text-xs font-semibold transition-all border"
-                 :class="filterStatus === status 
-                   ? 'bg-zinc-900 text-white border-zinc-900 shadow-md' 
+                 :class="filterStatus === status
+                   ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
                    : 'bg-zinc-50 text-emerald-600 border-zinc-100 hover:bg-zinc-100'"
                >
-                 {{ status }}
+                 {{ formatStatus(status) }}
                </button>
              </div>
           </div>
@@ -296,11 +397,24 @@ const getStatusClasses = (status: string) => {
 
         <!-- Table Section -->
         <div class="bg-white border border-zinc-100 rounded-xl shadow-sm overflow-hidden">
-          <Table>
+          <!-- Loading State -->
+          <div v-if="isInitialLoad" class="flex items-center justify-center py-20">
+            <div class="flex flex-col items-center gap-3">
+              <Loader2 class="h-8 w-8 text-emerald-600 animate-spin" />
+              <p class="text-sm text-zinc-500">Loading orders...</p>
+            </div>
+          </div>
+
+          <!-- Loading Overlay for non-initial loads -->
+          <div v-if="isLoading && !isInitialLoad" class="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+            <Loader2 class="h-6 w-6 text-emerald-600 animate-spin" />
+          </div>
+
+          <Table v-else>
             <TableHeader class="bg-zinc-50/50">
               <TableRow class="hover:bg-transparent">
 
-                <TableHead @click="handleSort('date')" class="cursor-pointer hover:text-emerald-600 text-[11px] font-bold uppercase tracking-wider text-emerald-600/70 group">
+                <TableHead @click="handleSort('order_date')" class="cursor-pointer hover:text-emerald-600 text-[11px] font-bold uppercase tracking-wider text-emerald-600/70 group">
                    <div class="flex items-center gap-1.5">
                      Date
                      <ArrowUpDown class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -316,26 +430,24 @@ const getStatusClasses = (status: string) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="order in paginatedOrders" :key="order.id" class="group transition-colors h-16 border-b border-zinc-50" @click="handleEditDetails(order)">
+              <TableRow v-for="order in filteredOrders" :key="order.order_id" class="group transition-colors h-16 border-b border-zinc-50" @click="handleEditDetails(order)">
 
-                <TableCell class="font-medium text-zinc-900">{{ order.date }}</TableCell>
-                <TableCell class="text-emerald-600/60 font-medium text-[13px]">{{ order.orderId }}</TableCell>
-                <TableCell class="font-bold text-zinc-900">{{ order.portions.toLocaleString() }} pax</TableCell>
-                <TableCell class="text-zinc-500 font-medium">{{ order.location }}</TableCell>
+                <TableCell class="font-medium text-zinc-900">{{ order.order_date }}</TableCell>
+                <TableCell class="text-emerald-600/60 font-medium text-[13px]">
+                  {{ order.order_id.slice(0, 8) }}...
+                </TableCell>
+                <TableCell class="font-bold text-zinc-900">{{ order.total_portion.toLocaleString() }} pax</TableCell>
+                <TableCell class="text-zinc-500 font-medium">{{ order.dropping_location_food || '-' }}</TableCell>
                 <TableCell>
-                  <span class="text-emerald-600 font-medium">{{ order.staff }} staff</span>
+                  <span class="text-emerald-600 font-medium">{{ getStaffCount(order.staff_allocation) }} staff</span>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" :class="getStatusClasses(order.status)" class="rounded-lg px-3 py-1 font-bold shadow-sm whitespace-nowrap">
-                    {{ order.status }}
+                    {{ formatStatus(order.status) }}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <div v-if="order.alerts" class="bg-rose-50 border border-rose-100 text-rose-600 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1.5 w-fit">
-                    <AlertCircle class="h-3 w-3" />
-                    {{ order.alerts }} Edits
-                  </div>
-                  <span v-else class="text-zinc-300">-</span>
+                  <span class="text-zinc-300">-</span>
                 </TableCell>
                 <TableCell class="text-right">
                   <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 group-hover:text-emerald-600 transition-colors" @click.stop="handleEditDetails(order)">
@@ -343,7 +455,7 @@ const getStatusClasses = (status: string) => {
                   </Button>
                 </TableCell>
               </TableRow>
-              <TableRow v-if="paginatedOrders.length === 0">
+              <TableRow v-if="filteredOrders.length === 0 && !isLoading">
                 <TableCell colspan="8" class="text-center py-8 text-zinc-500">
                   No orders found for this institution.
                 </TableCell>
@@ -352,52 +464,50 @@ const getStatusClasses = (status: string) => {
           </Table>
 
           <!-- Table Pagination Footer -->
-          <div v-if="paginatedOrders.length > 0" class="px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-zinc-50 bg-zinc-50/20">
+          <div v-if="filteredOrders.length > 0" class="px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-zinc-50 bg-zinc-50/20">
             <div class="flex items-center gap-4 text-xs font-medium text-emerald-600/70">
               <div class="flex items-center gap-2">
                 Rows per page:
-                <Select v-model="pageSize" class="w-16">
+                <Select v-model="pageSize" @update:model-value="currentPage = 1; fetchOrders()" class="w-16">
                   <SelectTrigger class="h-8 w-16 border-zinc-200">
                     <SelectValue :placeholder="pageSize.toString()" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem :value="5">5</SelectItem>
+                    <SelectItem :value="10">10</SelectItem>
+                    <SelectItem :value="20">20</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, filteredOrders.length) }} of {{ filteredOrders.length }}
+                {{ filteredOrders.length > 0 ? (currentPage - 1) * pageSize + 1 : 0 }}-{{ (currentPage - 1) * pageSize + filteredOrders.length }} of {{ totalOrders }}
               </div>
             </div>
 
             <div class="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                :disabled="currentPage === 1"
+              <Button
+                variant="ghost"
+                size="icon"
+                :disabled="currentPage === 1 || isLoading"
                 @click="currentPage--"
                 class="hover:bg-emerald-50 text-emerald-600"
               >
                 <ChevronLeft class="h-4 w-4" />
               </Button>
               <div class="flex gap-1">
-                <Button 
-                  v-for="page in totalPages" 
-                  :key="page"
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
-                  :class="currentPage === page ? 'bg-[#44bb2c] text-white' : 'hover:bg-emerald-50 text-emerald-600'"
-                  @click="currentPage = page"
+                  :class="'bg-[#44bb2c] text-white'"
+                  class="hover:bg-emerald-50 text-emerald-600"
                 >
-                  {{ page }}
+                  {{ currentPage }}
                 </Button>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                :disabled="currentPage === totalPages"
+              <Button
+                variant="ghost"
+                size="icon"
+                :disabled="filteredOrders.length < pageSize || isLoading"
                 @click="currentPage++"
                 class="hover:bg-emerald-50 text-emerald-600"
               >

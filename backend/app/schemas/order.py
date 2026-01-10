@@ -70,6 +70,7 @@ class OrderUpdate(BaseModel):
 class OrderRead(BaseModel):
     order_id: UUID
     institution_id: UUID
+    institution_name: Optional[str] = None
     order_date: date
     order_type: str
     total_portion: int
