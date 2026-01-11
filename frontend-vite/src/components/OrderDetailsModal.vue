@@ -7,8 +7,6 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -17,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Save, AlertTriangle, Check, X, MessageSquare, Plus, Trash2 } from 'lucide-vue-next'
+import { Save, AlertTriangle, Check, Plus, Trash2 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -86,8 +84,7 @@ const requestedMenuDetails = ref<MenuDetails>({
   beverages: []
 })
 
-const note = ref('')
-const showRejectNote = ref(false)
+
 
 // Menu categories for display
 const menuCategories = [
@@ -199,11 +196,6 @@ const handleSaveClient = () => {
 
 const handleApprove = () => {
   emit('approve-edit', requestedDistribution.value)
-  emit('update:open', false)
-}
-
-const handleReject = () => {
-  emit('reject-edit', note.value)
   emit('update:open', false)
 }
 
@@ -449,16 +441,9 @@ const isClientMode = computed(() => props.mode === 'client')
 
       <!-- Footer Actions -->
       <DialogFooter class="p-6 bg-zinc-50 border-t border-zinc-100">
-        
-        <!-- Note Input (Visible when needed specifically) -->
-        <div v-if="showRejectNote" class="w-full flex flex-col gap-3 mb-4 animate-in fade-in slide-in-from-bottom-2">
-          <Label>Reason / Note</Label>
-          <Textarea v-model="note" placeholder="Add a note (optional)..." />
-        </div>
-
         <div class="w-full flex items-center justify-between">
            <Button variant="ghost" @click="emit('update:open', false)">Cancel</Button>
-           
+
            <div class="flex gap-3">
              <template v-if="isClientMode">
                 <Button class="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" :disabled="!hasChanges" @click="handleSaveClient">
@@ -466,19 +451,11 @@ const isClientMode = computed(() => props.mode === 'client')
                   Submit Changes
                 </Button>
              </template>
-             
+
              <template v-else>
-               <Button variant="outline" class="border-rose-200 text-rose-600 hover:bg-rose-50 gap-2" @click="handleReject">
-                 <X class="h-4 w-4" />
-                 Reject
-               </Button>
-               <Button variant="secondary" class="bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200 gap-2" @click="showRejectNote = !showRejectNote">
-                 <MessageSquare class="h-4 w-4" />
-                 Accept with Note
-               </Button>
                <Button class="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" @click="handleApprove">
                  <Check class="h-4 w-4" />
-                 Approve
+                 Approve Changes
                </Button>
              </template>
            </div>

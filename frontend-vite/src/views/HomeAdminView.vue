@@ -185,21 +185,20 @@ const confirmStatusChange = async () => {
 
   try {
     await axios.put(
-      `${API_URL}/api/order/status`,
-      {
-        order_id: statusChangeOrder.value.order_id,
-        status: newStatus.value
-      },
+      `${API_URL}/api/orders/${statusChangeOrder.value.order_id}/status`,
+      { status: newStatus.value },
       {
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${authStore.token}`
         }
       }
     )
     showStatusChangeDialog.value = false
     fetchOrders()
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to update status:', error)
+    alert(`Failed to update status: ${error.response?.data?.detail || error.message}`)
   }
 }
 

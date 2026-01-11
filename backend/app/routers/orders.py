@@ -77,6 +77,9 @@ def get_orders(
 ):
     query = select(Order).options(joinedload(Order.institution))
 
+    # Filter out soft-deleted orders
+    query = query.where(Order.is_deleted == False)
+
     if institution_id:
         query = query.where(Order.institution_id == institution_id)
     if status:
@@ -95,7 +98,10 @@ def get_orders(
 # 3.2 Get Order Detail
 @router.get("/{order_id}", response_model=OrderRead)
 def get_order(order_id: UUID, db: Session = Depends(get_db)):
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -144,7 +150,10 @@ def create_order(
 # 3.4 Submit Order
 @router.post("/{order_id}/submit", response_model=OrderRead)
 def submit_order(order_id: UUID, db: Session = Depends(get_db)):
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -169,7 +178,10 @@ def update_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -240,7 +252,42 @@ def update_order(
     return order_to_dict_with_institution(order)
 
 
-# 3.6 Delete Order (Draft Only)
+# 3.7 Bulk Delete Orders (Admin Only) - MUST COME BEFORE /{order_id} route
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+def bulk_delete_orders(
+    bulk_request: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_dk_admin),
+):
+    """
+    Bulk soft delete orders. Only accessible to DK_ADMIN and SUPER_ADMIN.
+    Can delete orders regardless of status. Sets is_deleted to True.
+    """
+    if not bulk_request.order_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No order IDs provided"
+        )
+
+    # Fetch all orders (including already deleted ones)
+    orders = db.execute(
+        select(Order).where(Order.order_id.in_(bulk_request.order_ids))
+    ).scalars().all()
+
+    if not orders:
+        raise HTTPException(
+            status_code=404,
+            detail="No orders found"
+        )
+
+    # Soft delete all orders (set is_deleted to True)
+    for order in orders:
+        order.is_deleted = True
+
+    db.commit()
+
+
+# 3.6 Delete Order (Draft Only) - Soft Delete
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_order(order_id: UUID, db: Session = Depends(get_db)):
     order = db.get(Order, order_id)
@@ -253,57 +300,26 @@ def delete_order(order_id: UUID, db: Session = Depends(get_db)):
             detail=f"Only DRAFT orders can be deleted. Current status: {order.status}"
         )
 
-    db.delete(order)
+    # Soft delete instead of hard delete
+    order.is_deleted = True
     db.commit()
 
 
-# 3.7 Bulk Delete Orders (Admin Only)
-@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
-def bulk_delete_orders(
-    bulk_request: BulkDeleteRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_dk_admin),
-):
-    """
-    Bulk delete orders. Only accessible to DK_ADMIN and SUPER_ADMIN.
-    Can delete orders regardless of status.
-    """
-    if not bulk_request.order_ids:
-        raise HTTPException(
-            status_code=400,
-            detail="No order IDs provided"
-        )
-
-    # Fetch all orders
-    orders = db.execute(
-        select(Order).where(Order.order_id.in_(bulk_request.order_ids))
-    ).scalars().all()
-
-    if not orders:
-        raise HTTPException(
-            status_code=404,
-            detail="No orders found"
-        )
-
-    # Delete all orders
-    for order in orders:
-        db.delete(order)
-
-    db.commit()
-
-
-# PUT /api/order/status - Update Order Status (Admin Only)
-@router.put("/status", response_model=OrderRead)
+# PUT /api/orders/update-status - Update Order Status (Admin Only)
+@router.put("/update-status", response_model=OrderRead)
 def update_order_status_by_body(
     status_data: OrderStatusUpdateById,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_dk_admin),
 ):
     """
-    Update order status via PUT /api/order/status with order_id in body.
+    Update order status via PUT /api/orders/update-status with order_id in body.
     Only accessible to DK_ADMIN and SUPER_ADMIN.
     """
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == status_data.order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == status_data.order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -337,7 +353,10 @@ def update_order_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_dk_admin),
 ):
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -366,7 +385,9 @@ def update_order_status(
 # 5.2 Get Order Status Tracker
 @router.get("/{order_id}/tracker")
 def get_order_tracker(order_id: UUID, db: Session = Depends(get_db)):
-    order = db.get(Order, order_id)
+    order = db.execute(
+        select(Order).where(Order.order_id == order_id, Order.is_deleted == False)
+    ).scalars().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -408,7 +429,10 @@ def update_special_notes(
     Partial update for special_notes field only.
     Only accessible to DK_ADMIN and SUPER_ADMIN.
     """
-    query = select(Order).options(joinedload(Order.institution)).where(Order.order_id == order_id)
+    query = select(Order).options(joinedload(Order.institution)).where(
+        Order.order_id == order_id,
+        Order.is_deleted == False
+    )
     order = db.execute(query).scalars().unique().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

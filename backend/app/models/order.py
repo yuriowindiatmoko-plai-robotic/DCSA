@@ -40,6 +40,7 @@ class Order(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     special_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
