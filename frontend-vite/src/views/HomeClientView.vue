@@ -263,34 +263,9 @@ const handleEditDetails = (order: Order) => {
   isModalOpen.value = true
 }
 
-const handleSaveChanges = async (changes: any) => {
-  try {
-    // Prepare the requested_changes array format
-    const requestedChanges = [
-      { staff_allocation: changes.staff_allocation },
-      { menu_details: changes.menu_details }
-    ]
-
-    // Submit edit request to backend
-    await axios.post(`${API_URL}/api/edit-requests/`, {
-      order_id: changes.order_id,
-      requested_changes: requestedChanges,
-      change_reason: null  // Can be added later if needed
-    }, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      params: {
-        submitted_by: authStore.username  // Or use user ID if available
-      }
-    })
-
-    // Refresh orders to show updated status
-    fetchOrders()
-    isModalOpen.value = false
-  } catch (error) {
-    console.error('Failed to submit edit request:', error)
-  }
+const handleSaved = () => {
+  // Refresh orders after successful save
+  fetchOrders()
 }
 
 // Notifications Logic
@@ -559,12 +534,11 @@ const formatStatus = (status: string) => {
 
 
     <!-- Modals -->
-    <OrderDetailsModal 
-      :open="isModalOpen" 
+    <OrderDetailsModal
+      :open="isModalOpen"
       :order="selectedOrder"
-      mode="client" 
       @update:open="isModalOpen = $event"
-      @save="handleSaveChanges"
+      @saved="handleSaved"
     />
   </div>
 </template>

@@ -51,18 +51,18 @@ def determine_sla_status(order: Order) -> str:
 def merge_changes_to_order(order: Order, requested_changes: list, db: Session):
     """
     Merge requested_changes array into order.
-    requested_changes format: [{"staff_allocation": {...}}, {"menu_details": {...}}]
-    - Index 0: staff_allocation (dict)
-    - Index 1: menu_details (dict)
+    requested_changes format: [{"staff_allocation_changes": {...}}, {"menu_details_changes": {...}}]
+    - Index 0: staff_allocation_changes (dict)
+    - Index 1: menu_details_changes (dict)
     """
-    # Index 0: staff_allocation
-    if len(requested_changes) > 0 and "staff_allocation" in requested_changes[0]:
-        order.staff_allocation = requested_changes[0]["staff_allocation"]
-        order.total_portion = calculate_total_from_allocation(requested_changes[0]["staff_allocation"])
+    # Index 0: staff_allocation_changes
+    if len(requested_changes) > 0 and "staff_allocation_changes" in requested_changes[0]:
+        order.staff_allocation = requested_changes[0]["staff_allocation_changes"]
+        order.total_portion = calculate_total_from_allocation(requested_changes[0]["staff_allocation_changes"])
 
-    # Index 1: menu_details
-    if len(requested_changes) > 1 and "menu_details" in requested_changes[1]:
-        order.menu_details = requested_changes[1]["menu_details"]
+    # Index 1: menu_details_changes
+    if len(requested_changes) > 1 and "menu_details_changes" in requested_changes[1]:
+        order.menu_details = requested_changes[1]["menu_details_changes"]
 
     order.status = "APPROVED_EDITED"
     order.updated_at = datetime.utcnow()
@@ -75,11 +75,25 @@ def create_edit_request(
     db: Session = Depends(get_db),
     submitted_by: UUID = Query(..., description="Submitter user ID"),
 ):
+    """
+    Create edit request with simplified payload.
+
+    Payload format:
+    {
+      "order_id": "{order_id}",
+      "requested_changes": [
+        { "staff_allocation_changes": { ...jsonb_content... } },
+        { "menu_details_changes": { ...jsonb_content... } }
+      ]
+    }
+
+    Auto-populates original_breakdown from the orders table.
+    """
     # Get the order
     order = db.get(Order, edit_request_data.order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     # Check if order can be edited (not in final states)
     non_editable_statuses = ["DELIVERED", "COOKING", "READY"]
     if order.status in non_editable_statuses:
@@ -87,11 +101,12 @@ def create_edit_request(
             status_code=400,
             detail=f"Cannot create edit request for order with status: {order.status}"
         )
-    
+
     # Determine SLA status
     sla_status = determine_sla_status(order)
 
-    # Store both staff_allocation and menu_details in array format
+    # Auto-populate original_breakdown from orders table
+    # Copy staff_allocation and menu_details from the order
     original_breakdown = [
         {"staff_allocation": order.staff_allocation},
         {"menu_details": order.menu_details or {}}
@@ -101,8 +116,7 @@ def create_edit_request(
         order_id=order.order_id,
         institution_id=order.institution_id,
         original_breakdown=original_breakdown,
-        requested_changes=edit_request_data.requested_changes,  # Expected: [{"staff_allocation": {...}}, {"menu_details": {...}}]
-        change_reason=edit_request_data.change_reason,
+        requested_changes=edit_request_data.requested_changes,
         sla_status=sla_status,
         approval_status="PENDING",
         submitted_by=submitted_by,
@@ -110,7 +124,7 @@ def create_edit_request(
 
     # Update order status to indicate edit request
     order.status = "REQUEST_TO_EDIT"
-    
+
     db.add(edit_request)
     db.commit()
     db.refresh(edit_request)
@@ -123,20 +137,30 @@ def get_edit_requests(
     db: Session = Depends(get_db),
     institution_id: Optional[UUID] = Query(None),
     order_id: Optional[UUID] = Query(None),
-    approval_status: Optional[str] = Query(None),
+    created_at: Optional[datetime] = Query(None, description="Filter by created_at timestamp"),
+    updated_at: Optional[datetime] = Query(None, description="Filter by updated_at timestamp"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
+    """
+    Get edit requests with optional filters.
+
+    When order_id is provided, returns the most recent edit request for that order.
+    Supports filtering by created_at and updated_at timestamps.
+    """
     query = select(EditRequest)
-    
+
     if institution_id:
         query = query.where(EditRequest.institution_id == institution_id)
     if order_id:
         query = query.where(EditRequest.order_id == order_id)
-    if approval_status:
-        query = query.where(EditRequest.approval_status == approval_status)
-    
-    query = query.order_by(EditRequest.submitted_at.desc()).offset(skip).limit(limit)
+    if created_at:
+        query = query.where(EditRequest.created_at >= created_at)
+    if updated_at:
+        query = query.where(EditRequest.updated_at >= updated_at)
+
+    # Order by created_at DESC to get most recent first
+    query = query.order_by(EditRequest.created_at.desc()).offset(skip).limit(limit)
     edit_requests = db.execute(query).scalars().all()
     return edit_requests
 

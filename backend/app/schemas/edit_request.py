@@ -1,14 +1,14 @@
 # app/schemas/edit_request.py
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from uuid import UUID
 
 
 class EditRequestCreate(BaseModel):
+    """Simplified schema for creating edit requests"""
     order_id: UUID
-    requested_changes: Dict[str, Any]
-    change_reason: Optional[str] = None
+    requested_changes: List[Dict[str, Any]]  # Array of changes: [{"staff_allocation_changes": {...}}, {"menu_details_changes": {...}}]
 
 
 class EditRequestRead(BaseModel):

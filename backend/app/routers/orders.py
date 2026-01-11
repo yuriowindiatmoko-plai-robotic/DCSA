@@ -170,7 +170,7 @@ def submit_order(order_id: UUID, db: Session = Depends(get_db)):
     return order_to_dict_with_institution(order)
 
 
-# 3.5 Update Order (Draft Only or with RBAC for Edit Request)
+# 3.5 Update Order - Direct-to-Database (All Statuses)
 @router.put("/{order_id}", response_model=OrderRead)
 def update_order(
     order_id: UUID,
@@ -178,6 +178,18 @@ def update_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Direct order update endpoint - writes changes directly to orders table.
+    No edit request workflow - immediate update.
+
+    Access Control:
+    - DK_ADMIN and SUPER_ADMIN: Can edit any order regardless of status
+    - CLIENT_ADMIN: Can only edit orders from their own institution
+
+    Data Structure:
+    - staff_allocation: {category: {total, serving_type, drop_off_location}}
+    - menu_details: {heavy_meal: [{menu, total_qty}], snack: [...], beverages: [...]}
+    """
     query = select(Order).options(joinedload(Order.institution)).where(
         Order.order_id == order_id,
         Order.is_deleted == False
@@ -186,45 +198,13 @@ def update_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # RBAC: Check if user is CLIENT_ADMIN
+    # RBAC: CLIENT_ADMIN can only edit their own institution's orders
     if current_user.role == "CLIENT_ADMIN":
-        # CLIENT_ADMIN can only edit if status is ORDERED and order_date < today
-        if order.status != "ORDERED":
-            raise HTTPException(
-                status_code=403,
-                detail=f"CLIENT_ADMIN can only edit orders with status ORDERED. Current status: {order.status}"
-            )
-
-        from datetime import date as date_module
-        today = date_module.today()
-
-        if order.order_date >= today:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Cannot edit: Order date ({order.order_date}) must be before today ({today})."
-            )
-
-        # Check if user belongs to the same institution
         if current_user.institution_id != order.institution_id:
             raise HTTPException(
                 status_code=403,
                 detail="CLIENT_ADMIN can only edit orders from their own institution"
             )
-
-        # For CLIENT_ADMIN, automatically change status to REQUEST_TO_EDIT
-        # and create an edit request
-        # TODO: This will be implemented in a separate workflow
-    else:
-        # DK_ADMIN and SUPER_ADMIN can edit anytime
-        pass
-
-    # For now, only allow DRAFT updates
-    # TODO: Implement edit request workflow for ORDERED status
-    if order.status != "DRAFT":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only DRAFT orders can be updated directly. Current status: {order.status}"
-        )
 
     update_data = order_data.dict(exclude_unset=True)
 

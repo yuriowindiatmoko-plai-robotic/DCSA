@@ -388,65 +388,9 @@ const handleEditDetails = (order: Order) => {
   isModalOpen.value = true
 }
 
-const handleSaveChanges = (updatedOrder: Order) => {
-  // Not used in admin mode (read-only modal)
-  isModalOpen.value = false
-}
-
-const handleApproveEdit = async (data: any) => {
-  try {
-    // Get the edit request ID for this order
-    const response = await axios.get(`${API_URL}/api/edit-requests/`, {
-      headers: { Authorization: `Bearer ${authStore.token}` },
-      params: {
-        order_id: selectedOrder.value?.order_id,
-        approval_status: 'PENDING'
-      }
-    })
-
-    if (response.data && response.data.length > 0) {
-      const editRequestId = response.data[0].edit_request_id
-
-      // Approve the edit request
-      await axios.post(`${API_URL}/api/edit-requests/${editRequestId}/approve`, null, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-        params: { approved_by: authStore.username }
-      })
-
-      fetchOrders()
-    }
-    isModalOpen.value = false
-  } catch (error) {
-    console.error('Failed to approve edit request:', error)
-  }
-}
-
-const handleRejectEdit = async (note: string) => {
-  try {
-    // Get the edit request ID for this order
-    const response = await axios.get(`${API_URL}/api/edit-requests/`, {
-      headers: { Authorization: `Bearer ${authStore.token}` },
-      params: {
-        order_id: selectedOrder.value?.order_id,
-        approval_status: 'PENDING'
-      }
-    })
-
-    if (response.data && response.data.length > 0) {
-      const editRequestId = response.data[0].edit_request_id
-
-      // Reject the edit request
-      await axios.post(`${API_URL}/api/edit-requests/${editRequestId}/reject`, null, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-        params: { approved_by: authStore.username }
-      })
-
-      fetchOrders()
-    }
-    isModalOpen.value = false
-  } catch (error) {
-    console.error('Failed to reject edit request:', error)
-  }
+const handleSaved = () => {
+  // Refresh orders after successful save
+  fetchOrders()
 }
 
 const handleEditNotes = (order: Order) => {
@@ -844,11 +788,8 @@ const formatStatus = (status: string) => {
     <OrderDetailsModal
       :open="isModalOpen"
       :order="selectedOrder"
-      mode="admin"
       @update:open="isModalOpen = $event"
-      @save="handleSaveChanges"
-      @approve-edit="handleApproveEdit"
-      @reject-edit="handleRejectEdit"
+      @saved="handleSaved"
     />
 
     <!-- Status Change Confirmation Dialog -->
