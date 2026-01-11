@@ -56,6 +56,17 @@ const handleLogout = () => {
 }
 
 // Types - Updated to match backend API response
+interface MenuItem {
+  menu: string
+  total_qty: number
+}
+
+interface MenuDetails {
+  heavy_meal?: MenuItem[]
+  snack?: MenuItem[]
+  beverages?: MenuItem[]
+}
+
 interface Order {
   order_id: string
   institution_id: string
@@ -64,6 +75,7 @@ interface Order {
   total_portion: number
   dropping_location_food: string
   staff_allocation: Record<string, { total: number; drop_off_location: string; serving_type: string }>
+  menu_details?: MenuDetails | null
   status: string
 }
 
@@ -251,8 +263,9 @@ const handleEditDetails = (order: Order) => {
   isModalOpen.value = true
 }
 
-const handleSaveChanges = (updatedOrder: Order) => {
-  isModalOpen.value = false
+const handleSaved = () => {
+  // Refresh orders after successful save
+  fetchOrders()
 }
 
 // Notifications Logic
@@ -521,12 +534,11 @@ const formatStatus = (status: string) => {
 
 
     <!-- Modals -->
-    <OrderDetailsModal 
-      :open="isModalOpen" 
+    <OrderDetailsModal
+      :open="isModalOpen"
       :order="selectedOrder"
-      mode="client" 
       @update:open="isModalOpen = $event"
-      @save="handleSaveChanges"
+      @saved="handleSaved"
     />
   </div>
 </template>

@@ -1,7 +1,7 @@
 # app/schemas/order.py
 from pydantic import BaseModel, root_validator
 from datetime import date, datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from uuid import UUID
 
 
@@ -11,11 +11,23 @@ class StaffAllocationItem(BaseModel):
     serving_type: str
 
 
+class MenuItem(BaseModel):
+    menu: str
+    total_qty: int
+
+
+class MenuDetails(BaseModel):
+    heavy_meal: List[MenuItem] = []
+    snack: List[MenuItem] = []
+    beverages: List[MenuItem] = []
+
+
 class OrderBase(BaseModel):
     order_date: date
     order_type: str = "REGULAR"
     total_portion: int
     staff_allocation: Dict[str, StaffAllocationItem]
+    menu_details: Optional[MenuDetails] = None
     dropping_location_food: Optional[str] = None
     special_notes: Optional[str] = None
 
@@ -46,6 +58,7 @@ class OrderUpdate(BaseModel):
     order_type: Optional[str] = None
     total_portion: Optional[int] = None
     staff_allocation: Optional[Dict[str, StaffAllocationItem]] = None
+    menu_details: Optional[MenuDetails] = None
     dropping_location_food: Optional[str] = None
     special_notes: Optional[str] = None
 
@@ -75,6 +88,7 @@ class OrderRead(BaseModel):
     order_type: str
     total_portion: int
     staff_allocation: Dict[str, Any]
+    menu_details: Optional[Dict[str, Any]] = None
     dropping_location_food: Optional[str]
     status: str
     created_by: UUID
@@ -97,4 +111,13 @@ class OrderStatusUpdate(BaseModel):
 class OrderSubmit(BaseModel):
     """Empty body - just triggers submission"""
     pass
+
+
+class BulkDeleteRequest(BaseModel):
+    order_ids: List[UUID]
+
+
+class OrderStatusUpdateById(BaseModel):
+    order_id: UUID
+    status: str
 

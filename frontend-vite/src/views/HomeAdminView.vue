@@ -14,10 +14,23 @@ import {
   Users,
   LogOut,
   ArrowUpDown,
-  Loader2
+  Loader2,
+  Check,
+  Trash2,
+  RefreshCw,
+  FileText,
+  Info
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -49,6 +62,7 @@ import {
 } from '@/components/ui/tooltip'
 import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
 import UserManagementForm from '@/components/UserManagementForm.vue'
+import EditNotesDialog from '@/components/EditNotesDialog.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import axios from 'axios'
@@ -65,6 +79,17 @@ const handleLogout = () => {
 }
 
 // Types - Updated to match backend API response
+interface MenuItem {
+  menu: string
+  total_qty: number
+}
+
+interface MenuDetails {
+  heavy_meal?: MenuItem[]
+  snack?: MenuItem[]
+  beverages?: MenuItem[]
+}
+
 interface Order {
   order_id: string
   institution_id: string
@@ -73,6 +98,7 @@ interface Order {
   total_portion: number
   dropping_location_food: string
   staff_allocation: Record<string, { total: number; drop_off_location: string; serving_type: string }>
+  menu_details?: MenuDetails | null
   status: string
 }
 
@@ -105,6 +131,104 @@ const filterStatus = ref('All Orders')
 // Modal State
 const isModalOpen = ref(false)
 const selectedOrder = ref<Order | null>(null)
+
+// Notes Dialog State
+const isNotesDialogOpen = ref(false)
+const selectedOrderForNotes = ref<Order | null>(null)
+const localNotes = ref('')
+
+// Checkbox Selection State
+const selectedOrderIds = ref<Set<string>>(new Set())
+const isAllSelected = computed(() =>
+  filteredOrders.value.length > 0 && selectedOrderIds.value.size === filteredOrders.value.length
+)
+const isSomeSelected = computed(() =>
+  selectedOrderIds.value.size > 0 && selectedOrderIds.value.size < filteredOrders.value.length
+)
+
+// Status Change Confirmation State
+const showStatusChangeDialog = ref(false)
+const statusChangeOrder = ref<Order | null>(null)
+const newStatus = ref('')
+
+// Delete Confirmation State
+const showDeleteDialog = ref(false)
+
+// Toggle select all
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedOrderIds.value.clear()
+  } else {
+    filteredOrders.value.forEach(order => selectedOrderIds.value.add(order.order_id))
+  }
+}
+
+// Toggle individual selection
+const toggleSelectOrder = (orderId: string) => {
+  if (selectedOrderIds.value.has(orderId)) {
+    selectedOrderIds.value.delete(orderId)
+  } else {
+    selectedOrderIds.value.add(orderId)
+  }
+}
+
+// Handle status badge click
+const handleStatusClick = (order: Order) => {
+  statusChangeOrder.value = order
+  newStatus.value = order.status
+  showStatusChangeDialog.value = true
+}
+
+// Confirm status change
+const confirmStatusChange = async () => {
+  if (!statusChangeOrder.value) return
+
+  try {
+    await axios.put(
+      `${API_URL}/api/orders/${statusChangeOrder.value.order_id}/status`,
+      { status: newStatus.value },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authStore.token}`
+        }
+      }
+    )
+    showStatusChangeDialog.value = false
+    fetchOrders()
+  } catch (error: any) {
+    console.error('Failed to update status:', error)
+    alert(`Failed to update status: ${error.response?.data?.detail || error.message}`)
+  }
+}
+
+// Handle bulk delete
+const handleBulkDelete = () => {
+  if (selectedOrderIds.value.size === 0) return
+  showDeleteDialog.value = true
+}
+
+// Confirm bulk delete
+const confirmBulkDelete = async () => {
+  try {
+    await axios.delete(
+      `${API_URL}/api/orders/bulk`,
+      {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        },
+        data: {
+          order_ids: Array.from(selectedOrderIds.value)
+        }
+      }
+    )
+    showDeleteDialog.value = false
+    selectedOrderIds.value.clear()
+    fetchOrders()
+  } catch (error) {
+    console.error('Failed to delete orders:', error)
+  }
+}
 
 const statusOptions = [
   'All Orders',
@@ -264,9 +388,33 @@ const handleEditDetails = (order: Order) => {
   isModalOpen.value = true
 }
 
-const handleSaveChanges = (updatedOrder: Order) => {
-  // Implement save logic if needed
-  isModalOpen.value = false
+const handleSaved = () => {
+  // Refresh orders after successful save
+  fetchOrders()
+}
+
+const handleEditNotes = (order: Order) => {
+  selectedOrderForNotes.value = order
+  localNotes.value = order.special_notes || ''
+  isNotesDialogOpen.value = true
+}
+
+const handleSaveNotes = async (notes: string) => {
+  if (!selectedOrderForNotes.value) return
+
+  try {
+    await axios.patch(
+      `${API_URL}/api/orders/${selectedOrderForNotes.value.order_id}/notes`,
+      { special_notes: notes },
+      {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      }
+    )
+    isNotesDialogOpen.value = false
+    fetchOrders() // Refresh to show updated notes
+  } catch (error) {
+    console.error('Failed to save notes:', error)
+  }
 }
 
 // Helpers
@@ -420,6 +568,35 @@ const formatStatus = (status: string) => {
                </button>
              </div>
           </div>
+
+          <!-- Action Bar (shows when items are selected) -->
+          <div v-if="selectedOrderIds.size > 0" class="flex items-center justify-between p-4 bg-rose-50 border border-rose-100 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="bg-rose-100 p-2 rounded-full">
+                <Check class="h-4 w-4 text-rose-600" />
+              </div>
+              <span class="text-sm font-semibold text-rose-900">{{ selectedOrderIds.size }} order(s) selected</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                @click="selectedOrderIds.clear()"
+                class="border-rose-200 text-rose-700 hover:bg-rose-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                @click="handleBulkDelete"
+                class="gap-2"
+              >
+                <Trash2 class="h-4 w-4" />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
         </div>
 
         <!-- Table Section -->
@@ -441,6 +618,15 @@ const formatStatus = (status: string) => {
             <TableHeader class="bg-zinc-50/50">
               <TableRow class="hover:bg-transparent">
 
+                <TableHead class="w-12">
+                  <input
+                    type="checkbox"
+                    :checked="isAllSelected"
+                    :indeterminate="isSomeSelected"
+                    @change="toggleSelectAll"
+                    class="w-4 h-4 text-emerald-600 border-zinc-300 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                </TableHead>
                 <TableHead @click="handleSort('order_date')" class="cursor-pointer hover:text-emerald-600 text-[11px] font-bold uppercase tracking-wider text-emerald-600/70 group">
                    <div class="flex items-center gap-1.5">
                      Date
@@ -469,6 +655,14 @@ const formatStatus = (status: string) => {
             <TableBody>
               <TableRow v-for="order in filteredOrders" :key="order.order_id" class="group transition-colors h-16 border-b border-zinc-50">
 
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    :checked="selectedOrderIds.has(order.order_id)"
+                    @change="toggleSelectOrder(order.order_id)"
+                    class="w-4 h-4 text-emerald-600 border-zinc-300 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                </TableCell>
                 <TableCell class="font-medium text-zinc-900">{{ order.order_date }}</TableCell>
                 <TableCell>
                   <div class="font-bold text-zinc-900">{{ order.institution_name }}</div>
@@ -483,7 +677,12 @@ const formatStatus = (status: string) => {
                   <span class="text-emerald-600 font-medium">{{ getStaffCount(order.staff_allocation) }} staff</span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" :class="getStatusClasses(order.status)" class="rounded-lg px-3 py-1 font-bold shadow-sm whitespace-nowrap">
+                  <Badge
+                    variant="outline"
+                    :class="getStatusClasses(order.status)"
+                    class="rounded-lg px-3 py-1 font-bold shadow-sm whitespace-nowrap cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all"
+                    @click="handleStatusClick(order)"
+                  >
                     {{ formatStatus(order.status) }}
                   </Badge>
                 </TableCell>
@@ -503,13 +702,20 @@ const formatStatus = (status: string) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem @click="handleEditDetails(order)">Info</DropdownMenuItem>
+                      <DropdownMenuItem @click="handleEditDetails(order)">
+                        <Info class="h-4 w-4 mr-2" />
+                        Info
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @click="handleEditNotes(order)">
+                        <FileText class="h-4 w-4 mr-2" />
+                        Edit Notes
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
               <TableRow v-if="filteredOrders.length === 0 && !isLoading">
-                <TableCell colspan="11" class="text-center py-8 text-zinc-500">
+                <TableCell colspan="12" class="text-center py-8 text-zinc-500">
                   No orders found.
                 </TableCell>
               </TableRow>
@@ -579,11 +785,86 @@ const formatStatus = (status: string) => {
 
 
     <!-- Modals -->
-    <OrderDetailsModal 
-      :open="isModalOpen" 
-      :order="selectedOrder" 
+    <OrderDetailsModal
+      :open="isModalOpen"
+      :order="selectedOrder"
       @update:open="isModalOpen = $event"
-      @save="handleSaveChanges"
+      @saved="handleSaved"
+    />
+
+    <!-- Status Change Confirmation Dialog -->
+    <Dialog :open="showStatusChangeDialog" @update:open="showStatusChangeDialog = $event">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change Order Status</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to change the status for order {{ statusChangeOrder?.order_id?.slice(0, 8) }}...?
+          </DialogDescription>
+        </DialogHeader>
+        <div class="py-4">
+          <label class="text-sm font-medium text-zinc-700 mb-2 block">Select New Status</label>
+          <Select v-model="newStatus">
+            <SelectTrigger class="w-full">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="DRAFT">Draft</SelectItem>
+              <SelectItem value="ORDERED">Ordered</SelectItem>
+              <SelectItem value="REQUEST_TO_EDIT">Request To Edit</SelectItem>
+              <SelectItem value="APPROVED">Approved</SelectItem>
+              <SelectItem value="APPROVED_EDITED">Approved Edited</SelectItem>
+              <SelectItem value="REJECTED">Rejected</SelectItem>
+              <SelectItem value="NOTED">Noted</SelectItem>
+              <SelectItem value="PROCESSING">Processing</SelectItem>
+              <SelectItem value="COOKING">Cooking</SelectItem>
+              <SelectItem value="READY">Ready</SelectItem>
+              <SelectItem value="DELIVERED">Delivered</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showStatusChangeDialog = false">Cancel</Button>
+          <Button class="bg-emerald-600 hover:bg-emerald-700" @click="confirmStatusChange">
+            <Check class="h-4 w-4 mr-2" />
+            Change Status
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <Dialog :open="showDeleteDialog" @update:open="showDeleteDialog = $event">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Orders</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete {{ selectedOrderIds.size }} order(s)? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div class="py-4">
+          <div class="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-lg">
+            <AlertTriangle class="h-5 w-5 text-rose-600" />
+            <div class="text-sm text-rose-700">
+              <span class="font-semibold">Warning:</span> Orders will be permanently deleted regardless of their current status.
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showDeleteDialog = false">Cancel</Button>
+          <Button variant="destructive" @click="confirmBulkDelete">
+            <Trash2 class="h-4 w-4 mr-2" />
+            Delete {{ selectedOrderIds.size }} Order(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Edit Notes Dialog -->
+    <EditNotesDialog
+      :open="isNotesDialogOpen"
+      :notes="localNotes"
+      @update:open="isNotesDialogOpen = $event"
+      @save="handleSaveNotes"
     />
   </div>
 </template>

@@ -25,6 +25,7 @@ class Order(Base):
     )
     total_portion: Mapped[int] = mapped_column(Integer, nullable=False)
     staff_allocation: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    menu_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     dropping_location_food: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
@@ -39,6 +40,7 @@ class Order(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     special_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
