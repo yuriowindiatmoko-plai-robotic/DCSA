@@ -5,7 +5,7 @@ import { ref, computed } from 'vue'
 
 // Set default base URL for axios
 // Ideally this should be in an env var
-const API_URL = 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export const useAuthStore = defineStore('auth', () => {
     const token = ref<string | null>(localStorage.getItem('token'))
