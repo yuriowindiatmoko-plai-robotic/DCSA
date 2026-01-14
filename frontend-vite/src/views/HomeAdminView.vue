@@ -4,8 +4,6 @@ import {
   Search,
   Bell,
   MoreHorizontal,
-  Star,
-  AlertCircle,
   Menu,
   ChevronDown,
   ChevronLeft,
@@ -14,12 +12,13 @@ import {
   Users,
   LogOut,
   ArrowUpDown,
-  Loader2,
   Check,
+  Loader2,
   Trash2,
-  RefreshCw,
+  AlertTriangle,
+  Info,
   FileText,
-  Info
+  Plus
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,6 +62,7 @@ import {
 import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
 import UserManagementForm from '@/components/UserManagementForm.vue'
 import EditNotesDialog from '@/components/EditNotesDialog.vue'
+import CreateSpecialOrderModal from '@/components/CreateSpecialOrderModal.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import axios from 'axios'
@@ -100,6 +100,7 @@ interface Order {
   staff_allocation: Record<string, { total: number; drop_off_location: string; serving_type: string }>
   menu_details?: MenuDetails | null
   status: string
+  special_notes?: string
 }
 
 // Sidebar state
@@ -122,8 +123,7 @@ const currentPage = ref(1)
 const totalOrders = ref(0)
 
 // Filters State
-const todayString = new Date().toISOString().split('T')[0]
-const filterDate = ref<string | null>(null)
+const filterDate = ref<string | number | undefined>(undefined)
 const filterInstitution = ref('all')
 const filterSearch = ref('')
 const filterStatus = ref('All Orders')
@@ -131,6 +131,7 @@ const filterStatus = ref('All Orders')
 // Modal State
 const isModalOpen = ref(false)
 const selectedOrder = ref<Order | null>(null)
+const isCreateSpecialModalOpen = ref(false)
 
 // Notes Dialog State
 const isNotesDialogOpen = ref(false)
@@ -272,7 +273,7 @@ const fetchOrders = async () => {
 
     // Add date filter
     if (filterDate.value) {
-      params.append('order_date', filterDate.value)
+      params.append('order_date', filterDate.value.toString())
     }
 
     const response = await axios.get(`${API_URL}/api/orders/`, {
@@ -367,6 +368,8 @@ const filteredOrders = computed(() => {
     result = result.sort((a, b) => {
       const valA = a[sortField.value!]
       const valB = b[sortField.value!]
+      
+      if (valA == null || valB == null) return 0
       if (valA === valB) return 0
 
       const modifier = sortOrder.value === 'asc' ? 1 : -1
@@ -390,6 +393,11 @@ const handleEditDetails = (order: Order) => {
 
 const handleSaved = () => {
   // Refresh orders after successful save
+  fetchOrders()
+}
+
+const handleOrderCreated = () => {
+  // Refresh orders after successful creation
   fetchOrders()
 }
 
@@ -599,6 +607,19 @@ const formatStatus = (status: string) => {
           </div>
         </div>
 
+        </div>
+
+        <!-- Create Special Order Button Area -->
+        <div class="flex justify-end">
+            <Button 
+                class="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm"
+                @click="isCreateSpecialModalOpen = true"
+            >
+                <Plus class="h-4 w-4" />
+                Create Special Order
+            </Button>
+        </div>
+
         <!-- Table Section -->
         <div class="bg-white border border-zinc-100 rounded-xl shadow-sm overflow-hidden">
           <!-- Loading State -->
@@ -790,6 +811,12 @@ const formatStatus = (status: string) => {
       :order="selectedOrder"
       @update:open="isModalOpen = $event"
       @saved="handleSaved"
+    />
+
+    <CreateSpecialOrderModal 
+      :open="isCreateSpecialModalOpen"
+      @update:open="isCreateSpecialModalOpen = $event"
+      @order-created="handleOrderCreated"
     />
 
     <!-- Status Change Confirmation Dialog -->

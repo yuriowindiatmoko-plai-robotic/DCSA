@@ -12,9 +12,10 @@ export const useAuthStore = defineStore('auth', () => {
     const userRole = ref<string | null>(localStorage.getItem('role'))
     const username = ref<string | null>(localStorage.getItem('username'))
     const institutionId = ref<string | null>(localStorage.getItem('institution_id'))
+    const userId = ref<string | null>(localStorage.getItem('user_id'))
 
     const isAuthenticated = computed(() => !!token.value)
-    
+
     // Getter for role
     const getRole = computed(() => userRole.value)
 
@@ -39,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
             userRole.value = response.data.role
             username.value = response.data.username
             institutionId.value = response.data.institution_id
+            userId.value = response.data.uuid
 
             // Store data in localStorage
             if (token.value) localStorage.setItem('token', token.value)
@@ -50,6 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
             } else {
                 localStorage.removeItem('institution_id')
             }
+            if (userId.value) localStorage.setItem('user_id', userId.value)
 
             return { success: true }
         } catch (error: any) {
@@ -66,21 +69,24 @@ export const useAuthStore = defineStore('auth', () => {
         userRole.value = null
         username.value = null
         institutionId.value = null
-        
+        userId.value = null
+
         localStorage.removeItem('token')
         localStorage.removeItem('role')
         localStorage.removeItem('username')
         localStorage.removeItem('institution_id')
+        localStorage.removeItem('user_id')
     }
 
-    return { 
-        token, 
-        userRole, 
-        username, 
-        institutionId, 
-        isAuthenticated, 
-        getRole, 
-        login, 
-        logout 
+    return {
+        token,
+        userRole,
+        username,
+        institutionId,
+        userId,
+        isAuthenticated,
+        getRole,
+        login,
+        logout
     }
 })
