@@ -212,15 +212,15 @@ const handleBulkDelete = () => {
 // Confirm bulk delete
 const confirmBulkDelete = async () => {
   try {
-    await axios.delete(
-      `${API_URL}/api/orders/bulk`,
+    await axios.post(
+      `${API_URL}/api/orders/bulk-delete`,
       {
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        },
-        data: {
-          order_ids: Array.from(selectedOrderIds.value)
-        }
+        order_ids: Array.from(selectedOrderIds.value)
+      },
+      {
+         headers: {
+           Authorization: `Bearer ${authStore.token}`
+         }
       }
     )
     showDeleteDialog.value = false
@@ -607,7 +607,7 @@ const formatStatus = (status: string) => {
           </div>
         </div>
 
-        </div>
+
 
         <!-- Create Special Order Button Area -->
         <div class="flex justify-end">

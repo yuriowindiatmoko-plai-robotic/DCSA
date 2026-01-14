@@ -7,6 +7,14 @@ import { Plus, Trash2, CheckCircle2 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { onMounted, computed } from "vue";
 
 // Props & Emits
 const props = withDefaults(
@@ -33,10 +41,24 @@ interface MenuDetails {
   beverages?: MenuItem[];
 }
 
+interface Institution {
+  institution_id: string;
+  name: string;
+}
+
 // Local State
 const isSubmitting = ref(false);
 const servingDate = ref("");
 const droppingLocationFood = ref("");
+
+// Institution State
+const institutions = ref<Institution[]>([]);
+const selectedInstitutionId = ref<string>("");
+
+const canSelectInstitution = computed(() => {
+  const role = authStore.userRole;
+  return role === "DK_ADMIN" || role === "SUPER_ADMIN";
+});
 
 // Simplified Staff Allocation State
 // Requirement: Hardcoded key "all_guest"
@@ -100,7 +122,22 @@ const resetForm = () => {
     snack: [],
     beverages: [],
   };
+  selectedInstitutionId.value = "";
 };
+
+// Fetch institutions if admin
+onMounted(async () => {
+  if (canSelectInstitution.value) {
+    try {
+      const response = await axios.get(`${API_URL}/api/institutions/`, {
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      });
+      institutions.value = response.data;
+    } catch (error) {
+      console.error("Failed to fetch institutions:", error);
+    }
+  }
+});
 
 const handleSubmit = async () => {
   if (!servingDate.value) {
@@ -110,6 +147,16 @@ const handleSubmit = async () => {
   if (!authStore.userId) {
     alert("User ID not found. Please log in again.");
     return;
+  }
+
+  // Determine Institution ID
+  let orderInstitutionId = authStore.institutionId;
+  if (canSelectInstitution.value) {
+    if (!selectedInstitutionId.value) {
+      alert("Please select an Institution");
+      return;
+    }
+    orderInstitutionId = selectedInstitutionId.value;
   }
 
   try {
@@ -136,8 +183,8 @@ const handleSubmit = async () => {
       staff_allocation: finalStaffAllocation,
       menu_details: menuDetails.value,
       dropping_location_food: droppingLocationFood.value,
-      special_notes: "", // Optional, can add field if needed but not explicitly requested in form fields list
-      institution_id: authStore.institutionId, // From logged in user
+      special_notes: "",
+      institution_id: orderInstitutionId, 
     };
 
     // Query parameter created_by is required
@@ -200,6 +247,26 @@ const handleClose = () => {
         class="p-6 space-y-6 overflow-y-auto"
         style="max-height: calc(85vh - 160px)"
       >
+        <!-- Institution Selection (Admin Only) -->
+        <div v-if="canSelectInstitution" class="space-y-2">
+            <label class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Assign Institution</label>
+            <Select v-model="selectedInstitutionId">
+                <SelectTrigger class="bg-white border-zinc-300 focus:ring-emerald-500">
+                    <SelectValue placeholder="Select institution..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem 
+                        v-for="inst in institutions" 
+                        :key="inst.institution_id" 
+                        :value="inst.institution_id"
+                    >
+                        {{ inst.name }}
+                    </SelectItem>
+                </SelectContent>
+            </Select>
+            <p class="text-[11px] text-zinc-500">Select the institution this order belongs to.</p>
+        </div>
+
         <!-- Section 1: Basic Info -->
         <div class="grid grid-cols-2 gap-6">
           <div class="space-y-2">

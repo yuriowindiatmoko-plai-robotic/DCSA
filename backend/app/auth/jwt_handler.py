@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 SECRET_KEY = "your-super-secret"
 ALGORITHM = "HS256"
-EXPIRE_MINUTES = 30 
+EXPIRE_MINUTES = 1440
 REFRESH_EXPIRE_DAYS = 14
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
