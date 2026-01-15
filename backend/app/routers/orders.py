@@ -232,8 +232,8 @@ def update_order(
     return order_to_dict_with_institution(order)
 
 
-# 3.7 Bulk Delete Orders (Admin Only) - MUST COME BEFORE /{order_id} route
-@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+# 3.7 Bulk Delete Orders (Admin Only) - using POST to avoid body issues in DELETE
+@router.post("/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
 def bulk_delete_orders(
     bulk_request: BulkDeleteRequest,
     db: Session = Depends(get_db),
