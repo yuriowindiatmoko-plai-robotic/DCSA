@@ -1,0 +1,4 @@
+no,institution_name,order_date,total_portions,dropping_location_main,sa_dosen_total,sa_dosen_type,sa_dosen_drop_loc,sa_siswa_total,sa_siswa_type,sa_siswa_drop_loc,sa_staff_total,sa_staff_type,sa_staff_drop_loc,sa_satpam_total,sa_satpam_type,sa_satpam_drop_loc,menu_snack_items,menu_beverage_items,menu_heavy_meal_items,special_notes
+1,PLAI BMD,2026-01-15,320,KANTIN_PUSAT,20,Box,Pantry,150,Prasmanan,Kantin,135,Prasmanan,Kantin,15,Box,Meja CS,"Kue Sus=110; Risoles=50","Kolak=110; Es Teh=20","Nasi Padang=100; Gado-Gado=80",Tanpa MSG
+2,SMP Budi Mulia Dua,2026-01-16,333,GEDUNG_UTAMA,15,Box,Pantry Lantai 2,180,Prasmanan,Kantin Utama,120,Prasmanan,Kantin Utama,18,Box,Pos Depan,"Sus=100; Donat=100","Kolak=100","Nasi Padang=100; Perkedel=50",
+3,SD Budi Mulia Dua Panjen,2026-01-17,450,GEDUNG_B,25,Box,Pantry,200,Prasmanan,Kantin Lantai 1,180,Prasmanan,Kantin Lantai 1,45,Box,Lobby,"Brownis=150; Kue Lapis=100","Es Jeruk=120; Teh Hangat=80","Nasi Kuning=150; Lumpia=100",

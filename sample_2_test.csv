@@ -1,0 +1,4 @@
+no,institution_name,order_date,total_portions,dropping_location_main,sa_umum_total,sa_umum_type,sa_umum_drop_loc,menu_snack_items,menu_beverage_items,menu_heavy_meal_items,special_notes
+1,PLAI BMD,2026-01-20,100,LOBBY_UTAMA,100,Box,Resepsionis,"Roti Manis=50; Donat=50","Kopi=50; Teh=50","Sandwich=100",
+2,SMA Budi Mulia Dua,2026-01-21,150,RUANG RAPAT,150,Prasmanan,Area Rapat,"Croissant=75; Kue Ulang Tahun=75","Jus Buah=100; Air Mineral=50","Chicken Rice Bowl=150",Vegetarian untuk 10 orang
+3,SMP Budi Mulia Dua,2026-01-22,200,WAREHOUSE,200,Box,Loading Dock,"Granola Bar=100; Muffin=100","Minuman Isotonik=200","Burger Ayam=200",

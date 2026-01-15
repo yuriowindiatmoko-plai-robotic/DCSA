@@ -63,9 +63,13 @@ import OrderDetailsModal from '@/components/OrderDetailsModal.vue'
 import UserManagementForm from '@/components/UserManagementForm.vue'
 import EditNotesDialog from '@/components/EditNotesDialog.vue'
 import CreateSpecialOrderModal from '@/components/CreateSpecialOrderModal.vue'
+import BulkLoaderUpload from '@/components/BulkLoaderUpload.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import axios from 'axios'
+import {
+  Upload
+} from 'lucide-vue-next'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -132,6 +136,7 @@ const filterStatus = ref('All Orders')
 const isModalOpen = ref(false)
 const selectedOrder = ref<Order | null>(null)
 const isCreateSpecialModalOpen = ref(false)
+const isBulkLoaderModalOpen = ref(false)
 
 // Notes Dialog State
 const isNotesDialogOpen = ref(false)
@@ -610,8 +615,15 @@ const formatStatus = (status: string) => {
 
 
         <!-- Create Special Order Button Area -->
-        <div class="flex justify-end">
-            <Button 
+        <div class="flex justify-end gap-3">
+            <Button
+                class="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
+                @click="isBulkLoaderModalOpen = true"
+            >
+                <Upload class="h-4 w-4" />
+                Bulk Upload CSV
+            </Button>
+            <Button
                 class="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm"
                 @click="isCreateSpecialModalOpen = true"
             >
@@ -893,6 +905,22 @@ const formatStatus = (status: string) => {
       @update:open="isNotesDialogOpen = $event"
       @save="handleSaveNotes"
     />
+
+    <!-- Bulk Loader Dialog -->
+    <Dialog :open="isBulkLoaderModalOpen" @update:open="isBulkLoaderModalOpen = $event">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Bulk Upload Orders</DialogTitle>
+          <DialogDescription>
+            Upload a CSV file to create multiple orders at once
+          </DialogDescription>
+        </DialogHeader>
+        <BulkLoaderUpload />
+        <DialogFooter v-if="false">
+          <!-- Hidden footer as the component has its own actions -->
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

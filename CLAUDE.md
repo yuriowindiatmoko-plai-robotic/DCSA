@@ -1,0 +1,2 @@
+- to memorize using pnpm for frontend package
+- to memorize /home/yurio/Public/PROJECT/DCSA/Boilerplate-FastAPI-Vue3-Vite-Postgres/backend/.venv/bin/python use python here

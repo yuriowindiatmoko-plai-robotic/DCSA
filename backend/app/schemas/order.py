@@ -121,3 +121,48 @@ class OrderStatusUpdateById(BaseModel):
     order_id: UUID
     status: str
 
+
+# ============================================================================
+# BULK UPLOAD SCHEMAS
+# ============================================================================
+
+class BulkUploadPreviewItem(BaseModel):
+    """Single item in bulk upload preview."""
+    row_number: int
+    institution_name: str
+    order_date: str
+    order_type: str = "REGULAR"
+    total_portion: int
+    dropping_location_food: str
+    staff_allocation: Dict[str, Any]
+    menu_details: Optional[Dict[str, Any]] = None
+    special_notes: Optional[str] = None
+    status: str = "ok"  # ok, warning, error
+    error_message: Optional[str] = None
+
+
+class BulkUploadPreviewResponse(BaseModel):
+    """Response from bulk upload preview endpoint."""
+    success: bool
+    csv_format: str
+    parsed_rows: int
+    preview_data: List[BulkUploadPreviewItem]
+    validation_errors: List[str] = []
+    validation_warnings: List[str] = []
+    total_portion: int = 0
+
+
+class BulkUploadSubmitRequest(BaseModel):
+    """Request for bulk upload submit."""
+    csv_content: str  # CSV content as string
+    confirmed: bool = True
+
+
+class BulkUploadSubmitResponse(BaseModel):
+    """Response from bulk upload submit."""
+    success: bool
+    orders_created: int
+    order_ids: List[UUID]
+    total_portion: int
+    message: str = ""
+
