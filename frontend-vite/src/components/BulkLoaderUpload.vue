@@ -47,7 +47,7 @@
     <div v-if="selectedFile" class="action-buttons">
       <Button
         variant="outline"
-        @click="removeFile"
+        @click="handleCancel"
         :disabled="isLoading"
       >
         Cancel
@@ -66,7 +66,6 @@
     <BulkLoaderPreviewModal
       v-if="showPreviewModal"
       :preview-data="previewData"
-      :csv-content="csvContent"
       :is-submitting="isSubmitting"
       @close="showPreviewModal = false"
       @submit="handleSubmit"
@@ -83,13 +82,18 @@ import type { BulkUploadPreviewResponse } from '@/services/bulkUploadApi'
 import { toast } from 'vue-sonner'
 import BulkLoaderPreviewModal from './BulkLoaderPreviewModal.vue'
 
+// Emits
+const emit = defineEmits<{
+  close: []
+  success: []
+}>()
+
 // State
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const isDragOver = ref(false)
 const isLoading = ref(false)
 const isSubmitting = ref(false)
-const csvContent = ref('')
 const previewData = ref<BulkUploadPreviewResponse | null>(null)
 const showPreviewModal = ref(false)
 
@@ -109,7 +113,6 @@ function handleDrop(e: DragEvent) {
     const file = files[0]
     if (file && file.name.endsWith('.csv')) {
       selectedFile.value = file
-      readCSVContent(file)
     } else {
       toast.error('Please select a CSV file')
     }
@@ -128,31 +131,21 @@ function handleFileSelect(e: Event) {
     const file = files[0]
     if (file) {
       selectedFile.value = file
-      readCSVContent(file)
     }
   }
 }
 
 function removeFile() {
   selectedFile.value = null
-  csvContent.value = ''
   previewData.value = null
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
 }
 
-// Read CSV content
-function readCSVContent(file: File) {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const text = e.target?.result as string
-    csvContent.value = text
-  }
-  reader.onerror = () => {
-    toast.error('Failed to read file')
-  }
-  reader.readAsText(file)
+function handleCancel() {
+  removeFile()
+  emit('close')
 }
 
 // Preview handler
@@ -167,17 +160,23 @@ async function handlePreview() {
   try {
     const result = await previewBulkUpload(selectedFile.value)
 
+    // Store the full preview data including parsed orders
+    previewData.value = result
+    showPreviewModal.value = true
+
     if (result.success) {
-      previewData.value = result
-      showPreviewModal.value = true
       toast.success(`Parsed ${result.parsed_rows} orders successfully`)
     } else {
-      previewData.value = result
-      showPreviewModal.value = true
       toast.warning(`Preview loaded with ${result.validation_errors.length} errors`)
     }
+
+    // Log the parsed orders for debugging
+    console.log('✅ Preview Response:')
+    console.log('- Parsed rows:', result.parsed_rows)
+    console.log('- Valid orders:', result.orders?.length || 0)
+    console.log('- Orders to submit:', result.orders)
   } catch (error: any) {
-    console.error('Preview failed:', error)
+    console.error('❌ Preview failed:', error)
     toast.error(error.response?.data?.detail || 'Failed to preview CSV file')
   } finally {
     isLoading.value = false
@@ -186,26 +185,54 @@ async function handlePreview() {
 
 // Submit handler
 async function handleSubmit() {
-  if (!csvContent.value) {
-    toast.error('No CSV content to submit')
+  if (!previewData.value || !previewData.value.orders) {
+    toast.error('No orders to submit')
     return
   }
 
   isSubmitting.value = true
 
   try {
-    const result = await submitBulkUpload(csvContent.value)
+    console.log('📤 Submitting orders:', previewData.value.orders)
+    const result = await submitBulkUpload(previewData.value.orders)
 
     if (result.success) {
       toast.success(`Successfully created ${result.orders_created} orders!`)
       showPreviewModal.value = false
       removeFile()
+      emit('success')
+      emit('close')
     } else {
       toast.error('Failed to create orders')
     }
   } catch (error: any) {
-    console.error('Submit failed:', error)
-    toast.error(error.response?.data?.detail || 'Failed to submit orders')
+    console.error('❌ Submit failed:', error)
+    console.error('Error response:', error.response?.data)
+
+    // Log the actual validation error detail
+    const detail = error.response?.data?.detail
+    console.log('🔍 Validation error detail:', detail)
+
+    // Show detailed error message
+    const errorMsg = error.response?.data?.detail
+    if (errorMsg) {
+      if (typeof errorMsg === 'string') {
+        toast.error(errorMsg)
+      } else if (Array.isArray(errorMsg)) {
+        // FastAPI validation errors are arrays of objects
+        const errorMessages = errorMsg.map((e: any) => {
+          if (typeof e === 'string') return e
+          if (e.msg) return `${e.loc?.join('.')} - ${e.msg}`
+          return JSON.stringify(e)
+        })
+        console.error('❌ Validation errors:', errorMessages)
+        toast.error(errorMessages.join('; '))
+      } else {
+        toast.error(JSON.stringify(errorMsg))
+      }
+    } else {
+      toast.error('Failed to submit orders')
+    }
   } finally {
     isSubmitting.value = false
   }

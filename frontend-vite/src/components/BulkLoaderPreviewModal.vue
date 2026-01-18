@@ -279,7 +279,6 @@ import type { BulkUploadPreviewResponse, BulkUploadPreviewItem } from '@/service
 // Props
 interface Props {
   previewData: BulkUploadPreviewResponse | null
-  csvContent: string
   isSubmitting: boolean
 }
 

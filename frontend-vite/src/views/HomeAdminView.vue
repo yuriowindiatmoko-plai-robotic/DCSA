@@ -915,7 +915,7 @@ const formatStatus = (status: string) => {
             Upload a CSV file to create multiple orders at once
           </DialogDescription>
         </DialogHeader>
-        <BulkLoaderUpload />
+        <BulkLoaderUpload @close="isBulkLoaderModalOpen = false" @success="fetchOrders" />
         <DialogFooter v-if="false">
           <!-- Hidden footer as the component has its own actions -->
         </DialogFooter>

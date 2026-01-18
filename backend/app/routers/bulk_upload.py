@@ -17,7 +17,8 @@ from app.schemas.order import (
     BulkUploadPreviewResponse,
     BulkUploadPreviewItem,
     BulkUploadSubmitRequest,
-    BulkUploadSubmitResponse
+    BulkUploadSubmitResponse,
+    BulkUploadOrderItem
 )
 from app.utils.csv_parser import (
     validate_csv_headers,
@@ -110,6 +111,7 @@ async def preview_bulk_upload(
     validation_errors: List[str] = []
     validation_warnings: List[str] = []
     total_portion = 0
+    valid_orders: List[Dict[str, Any]] = []  # Only valid orders ready for submit
 
     db = next(get_db())
 
@@ -184,6 +186,18 @@ async def preview_bulk_upload(
             )
         )
 
+        # Add to valid orders for submit
+        valid_orders.append(BulkUploadOrderItem(
+            institution_name=parsed_data['institution_name'],
+            order_date=parsed_data['order_date'],
+            order_type=parsed_data['order_type'],
+            total_portion=parsed_data['total_portion'],
+            dropping_location_food=parsed_data['dropping_location_food'],
+            staff_allocation=parsed_data['staff_allocation'],
+            menu_details=parsed_data['menu_details'],
+            special_notes=parsed_data['special_notes']
+        ))
+
         total_portion += parsed_data['total_portion']
 
     db.close()
@@ -211,7 +225,8 @@ async def preview_bulk_upload(
         preview_data=preview_data,
         validation_errors=critical_errors,
         validation_warnings=validation_warnings + institution_warnings,
-        total_portion=total_portion
+        total_portion=total_portion,
+        orders=valid_orders  # Include parsed orders ready for submit
     )
 
 
@@ -221,82 +236,94 @@ async def submit_bulk_upload(
     current_user: User = Depends(require_dk_admin)
 ):
     """
-    Submit bulk order upload from CSV content.
+    Submit bulk order upload from parsed order objects.
 
     Creates all orders in the database within a transaction.
     If any order fails to create, the entire transaction is rolled back.
 
     Requires DK_ADMIN or SUPER_ADMIN role.
     """
+    logger.info(f"📤 Received bulk upload request: {len(request.orders)} orders")
+
     if not request.confirmed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Upload must be confirmed"
         )
 
-    # Parse CSV
-    try:
-        csv_reader = csv.DictReader(io.StringIO(request.csv_content))
-        rows = list(csv_reader)
-    except Exception as e:
-        logger.error(f"Failed to parse CSV: {e}")
+    if not request.orders:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid CSV format: {str(e)}"
+            detail="Orders list is empty"
         )
 
-    if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV content is empty"
-        )
+    # Log the first order for debugging
+    if request.orders:
+        logger.info(f"📋 First order data: {request.orders[0]}")
 
-    # Get headers
-    headers = list(rows[0].keys()) if rows else []
-
-    # Parse all rows
+    # Parse all orders
     orders_to_create = []
     total_portion = 0
 
     db = next(get_db())
 
     try:
-        for idx, row in enumerate(rows, start=1):
-            parsed_data, error_msg = parse_csv_row(row, idx, headers)
+        for idx, order_data in enumerate(request.orders, start=1):
+            logger.info(f"Processing order {idx}: {order_data.institution_name}")
 
-            if error_msg:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Row {idx}: {error_msg}"
-                )
+            # Pydantic model already validates required fields
+            institution_name = order_data.institution_name
 
             # Get institution
             institution = db.query(Institution).filter(
-                Institution.name == parsed_data['institution_name']
+                Institution.name == institution_name
             ).first()
 
             if not institution:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Row {idx}: Institution '{parsed_data['institution_name']}' not found"
+                    detail=f"Order {idx}: Institution '{institution_name}' not found"
                 )
+
+            # Convert staff_allocation to dict for SQLAlchemy
+            staff_alloc_dict = {
+                role: {
+                    "total": item.total,
+                    "serving_type": item.serving_type,
+                    "drop_off_location": item.drop_off_location
+                }
+                for role, item in order_data.staff_allocation.items()
+            }
+
+            # Convert menu_details to dict for SQLAlchemy
+            menu_details_dict = None
+            if order_data.menu_details:
+                menu_details_dict = {
+                    category: [
+                        {"menu": item.menu, "total_qty": item.total_qty}
+                        for item in items
+                    ]
+                    for category, items in order_data.menu_details.items()
+                }
 
             # Create order object
             order = Order(
                 institution_id=institution.institution_id,
-                order_date=parsed_data['order_date'],
-                order_type=parsed_data['order_type'],
-                total_portion=parsed_data['total_portion'],
-                staff_allocation=parsed_data['staff_allocation'],
-                menu_details=parsed_data['menu_details'],
-                dropping_location_food=parsed_data['dropping_location_food'],
-                special_notes=parsed_data['special_notes'],
+                order_date=order_data.order_date,
+                order_type=order_data.order_type,
+                total_portion=order_data.total_portion,
+                staff_allocation=staff_alloc_dict,
+                menu_details=menu_details_dict,
+                dropping_location_food=order_data.dropping_location_food,
+                special_notes=order_data.special_notes,
                 status="DRAFT",
                 created_by=current_user.id
             )
 
             orders_to_create.append(order)
-            total_portion += parsed_data['total_portion']
+            total_portion += order_data.total_portion
+
+        logger.info(f"Creating {len(orders_to_create)} orders...")
 
         # Bulk insert in transaction
         db.bulk_save_objects(orders_to_create, return_defaults=True)
@@ -313,7 +340,7 @@ async def submit_bulk_upload(
         return BulkUploadSubmitResponse(
             success=True,
             orders_created=len(order_ids),
-            order_ids=order_ids,
+            order_ids=[str(order_id) for order_id in order_ids],
             total_portion=total_portion,
             message=f"Successfully created {len(order_ids)} orders"
         )
@@ -323,7 +350,7 @@ async def submit_bulk_upload(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Bulk upload failed: {e}")
+        logger.error(f"Bulk upload failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Bulk upload failed: {str(e)}"

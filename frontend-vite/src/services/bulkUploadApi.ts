@@ -43,10 +43,11 @@ export interface BulkUploadPreviewResponse {
   validation_errors: string[]
   validation_warnings: string[]
   total_portion: number
+  orders: any[]  // Parsed orders ready for submit
 }
 
 export interface BulkUploadSubmitRequest {
-  csv_content: string
+  orders: any[]
   confirmed: boolean
 }
 
@@ -80,15 +81,19 @@ export async function previewBulkUpload(file: File): Promise<BulkUploadPreviewRe
 }
 
 /**
- * Submit bulk order upload
+ * Submit bulk order upload with parsed orders
  */
-export async function submitBulkUpload(csvContent: string): Promise<BulkUploadSubmitResponse> {
+export async function submitBulkUpload(orders: any[]): Promise<BulkUploadSubmitResponse> {
+  const payload = {
+    orders: orders,
+    confirmed: true
+  }
+
+  console.log('📤 Sending payload to backend:', JSON.stringify(payload, null, 2))
+
   const response = await axios.post<BulkUploadSubmitResponse>(
     `${API_URL}/api/orders/bulk/submit`,
-    {
-      csv_content: csvContent,
-      confirmed: true
-    },
+    payload,
     {
       headers: {
         'Content-Type': 'application/json',
