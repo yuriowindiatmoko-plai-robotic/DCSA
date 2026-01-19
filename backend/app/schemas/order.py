@@ -121,3 +121,74 @@ class OrderStatusUpdateById(BaseModel):
     order_id: UUID
     status: str
 
+
+# ============================================================================
+# BULK UPLOAD SCHEMAS
+# ============================================================================
+
+class BulkUploadStaffAllocation(BaseModel):
+    """Staff allocation for bulk upload (simplified, no UUID)."""
+    total: int
+    serving_type: str
+    drop_off_location: str
+
+
+class BulkUploadMenuItem(BaseModel):
+    """Menu item for bulk upload (simplified, no UUID)."""
+    menu: str
+    total_qty: int
+
+
+class BulkUploadOrderItem(BaseModel):
+    """Single order item for bulk upload."""
+    institution_name: str
+    order_date: str
+    order_type: str = "REGULAR"
+    total_portion: int
+    dropping_location_food: str
+    staff_allocation: Dict[str, BulkUploadStaffAllocation]
+    menu_details: Optional[Dict[str, List[BulkUploadMenuItem]]] = None
+    special_notes: Optional[str] = None
+
+
+class BulkUploadPreviewItem(BaseModel):
+    """Single item in bulk upload preview."""
+    row_number: int
+    institution_name: str
+    order_date: str
+    order_type: str = "REGULAR"
+    total_portion: int
+    dropping_location_food: str
+    staff_allocation: Dict[str, Any]
+    menu_details: Optional[Dict[str, Any]] = None
+    special_notes: Optional[str] = None
+    status: str = "ok"  # ok, warning, error
+    error_message: Optional[str] = None
+
+
+class BulkUploadPreviewResponse(BaseModel):
+    """Response from bulk upload preview endpoint."""
+    success: bool
+    csv_format: str
+    parsed_rows: int
+    preview_data: List[BulkUploadPreviewItem]
+    validation_errors: List[str] = []
+    validation_warnings: List[str] = []
+    total_portion: int = 0
+    orders: List[BulkUploadOrderItem] = []  # Parsed orders ready for submit
+
+
+class BulkUploadSubmitRequest(BaseModel):
+    """Request for bulk upload submit."""
+    orders: List[BulkUploadOrderItem]
+    confirmed: bool = True
+
+
+class BulkUploadSubmitResponse(BaseModel):
+    """Response from bulk upload submit."""
+    success: bool
+    orders_created: int
+    order_ids: List[UUID]
+    total_portion: int
+    message: str = ""
+

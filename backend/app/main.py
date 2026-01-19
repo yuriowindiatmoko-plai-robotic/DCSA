@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, orders, edit_requests, institutions
+from app.routers import auth, orders, edit_requests, institutions, bulk_upload
 from app.db import engine
 from app.db.engine import engine, SessionLocal
 from app.db.base import Base
@@ -37,6 +37,9 @@ def healthcheck():
     return {"status": "ok"}
 
 # Routers
+# IMPORTANT: bulk_upload must be included before orders to avoid route conflicts
+# /api/orders/bulk/submit must match before /api/orders/{order_id}
+app.include_router(bulk_upload.router)
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
 app.include_router(edit_requests.router, prefix="/api/edit-requests", tags=["Edit Requests"])
