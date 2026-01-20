@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, orders, edit_requests, institutions, bulk_upload, feedback_ratings
+from app.routers import auth, orders, edit_requests, institutions, bulk_upload, feedback_ratings, food_analyst
 from app.db import engine
 from app.db.engine import engine, SessionLocal
 from app.db.base import Base
@@ -45,5 +45,6 @@ app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
 app.include_router(edit_requests.router, prefix="/api/edit-requests", tags=["Edit Requests"])
 app.include_router(institutions.router, prefix="/api/institutions", tags=["Institutions"])
 app.include_router(feedback_ratings.router, prefix="/api/rating-food", tags=["Rating Food"])
+app.include_router(food_analyst.router)
 
 

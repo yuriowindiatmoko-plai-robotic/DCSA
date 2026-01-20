@@ -19,7 +19,8 @@ import {
   Info,
   FileText,
   Plus,
-  MessageSquare
+  MessageSquare,
+  Bot
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -480,6 +481,10 @@ const formatStatus = (status: string) => {
           <router-link to="/feedback-analysis" class="flex items-center gap-3 px-4 py-3 rounded-lg group transition-colors hover:bg-zinc-800/30 hover:text-white">
             <MessageSquare class="h-5 w-5" />
             <span class="font-medium">Feedback Analysis</span>
+          </router-link>
+          <router-link to="/food-analyst" class="flex items-center gap-3 px-4 py-3 rounded-lg group transition-colors hover:bg-zinc-800/30 hover:text-white">
+            <Bot class="h-5 w-5" />
+            <span class="font-medium">Food Analyst Agent</span>
           </router-link>
         </nav>
         <div class="mt-auto pt-6 border-t border-zinc-800">
