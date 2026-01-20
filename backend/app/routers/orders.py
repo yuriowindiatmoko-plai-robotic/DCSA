@@ -72,6 +72,7 @@ def get_orders(
     institution_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
     order_date: Optional[date] = Query(None),
+    for_rating_food: Optional[bool] = Query(False, description="Return simplified format for rating food form"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):

@@ -10,3 +10,4 @@ psycopg[binary]
 gunicorn
 python-dotenv
 asyncpg
+pytz==2025.2
