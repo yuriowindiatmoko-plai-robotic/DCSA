@@ -157,18 +157,21 @@ def get_all_feedback_ratings(
     db: Session = Depends(get_db),
     institution_id: Optional[UUID] = Query(None),
     date_of_feedback: Optional[date] = Query(None),
+    feedback_id: Optional[UUID] = Query(None, description="Filter by specific feedback ID"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
     """
     Get all feedback ratings from all institutions (admin view).
-    Can be filtered by institution_id and date_of_feedback.
+    Can be filtered by institution_id, date_of_feedback, and feedback_id.
     """
     query = select(FeedbackRating).options(
         joinedload(FeedbackRating.institution),
         joinedload(FeedbackRating.order),
     )
 
+    if feedback_id:
+        query = query.where(FeedbackRating.id == feedback_id)
     if institution_id:
         query = query.where(FeedbackRating.institution_id == institution_id)
     if date_of_feedback:
@@ -176,6 +179,8 @@ def get_all_feedback_ratings(
 
     # Get total count
     count_query = select(func.count()).select_from(FeedbackRating)
+    if feedback_id:
+        count_query = count_query.where(FeedbackRating.id == feedback_id)
     if institution_id:
         count_query = count_query.where(FeedbackRating.institution_id == institution_id)
     if date_of_feedback:

@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Info,
   FileText,
-  Plus
+  Plus,
+  MessageSquare
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -476,6 +477,10 @@ const formatStatus = (status: string) => {
             <Users class="h-5 w-5" />
             <span class="font-medium">User Management</span>
           </a>
+          <router-link to="/feedback-analysis" class="flex items-center gap-3 px-4 py-3 rounded-lg group transition-colors hover:bg-zinc-800/30 hover:text-white">
+            <MessageSquare class="h-5 w-5" />
+            <span class="font-medium">Feedback Analysis</span>
+          </router-link>
         </nav>
         <div class="mt-auto pt-6 border-t border-zinc-800">
           <Button @click="handleLogout" variant="ghost" class="w-full justify-start gap-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 transition-colors">
