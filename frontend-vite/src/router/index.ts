@@ -6,6 +6,7 @@ import HomeAdminView from '../views/HomeAdminView.vue'
 import HomeClientView from '../views/HomeClientView.vue'
 import RatingFoodView from '../views/RatingFoodView.vue'
 import FeedbackAnalysisView from '../views/FeedbackAnalysisView.vue'
+import FoodAnalystView from '../views/FoodAnalystView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
@@ -40,6 +41,12 @@ const router = createRouter({
             name: 'feedback-analysis',
             component: FeedbackAnalysisView,
             meta: { requiresAuth: true, roles: ['SUPER_ADMIN', 'DK_ADMIN'] }
+        },
+        {
+            path: '/food-analyst',
+            name: 'food-analyst',
+            component: FoodAnalystView,
+            meta: { requiresAuth: true }
         },
         {
             path: '/login',
